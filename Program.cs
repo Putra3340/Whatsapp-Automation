@@ -43,6 +43,9 @@ namespace WhatsApp
         public static string LastMsgID = string.Empty;
         public static int MaxDuplicateMsgCount = 3;
         public static int LastLength = 100;
+        public static int LastLength2 = 100;
+        public static string LatestVer = "";
+        public static string Current = "0.2b";
 
         [STAThread] // Required for clipboard operations
         public static async Task Main(string[] args)
@@ -68,8 +71,19 @@ namespace WhatsApp
     }
             });
             Console.WriteLine("Setup Browser..");
+            await CreatePage(browser);
+            // CreatePage(browser); so the whatsapp cant open 2 pages
+            while (true)
+            {
+                Console.ReadLine();
+            }
+        }
+        public static async Task<string> CreatePage(IBrowser browser)
+        {
 
+            //create page instance
             var page = await browser.NewPageAsync();
+
             if (File.Exists("cookies.json"))
             {
                 Console.WriteLine("Cookie exists.");
@@ -84,7 +98,7 @@ namespace WhatsApp
             }
 
             await page.EvaluateExpressionAsync("window.moveTo(0, 0); window.resizeTo(screen.width, screen.height);");
-            // Set the viewport to emulate full screen
+
             await page.SetViewportAsync(new ViewPortOptions
             {
                 Width = 1366,
@@ -98,61 +112,21 @@ namespace WhatsApp
             GoToChat(page);
             Console.WriteLine("Goto Profile Done!");
             isActive = true;
+            await Task.Delay(3000);
             while (isActive)
             {
                 try
                 {
-                    string TimeBak = LastMsgTime;
-                    await Task.Delay(1000);
-                    //max 3 repeated command per minute
-                    var newmessage = await page.XPathAsync("//div[@class='copyable-text' and not(contains(@data-pre-plain-text,' Rahmad Syaputra'))]//span[@dir]/span");
-                    if (newmessage.Length > 0)
-                    {
-                        LastMsg = await newmessage.Last().EvaluateFunctionAsync<string>("e => e.innerText");
-                    }
-                    var cek = await page.XPathAsync("//div[@class='copyable-text' and not(contains(@data-pre-plain-text,' Rahmad Syaputra'))]/following-sibling::div");
-                    if (cek.Length > 0)
-                    {
-                        LastMsgTime = await cek.Last().EvaluateFunctionAsync<string>("e => e.innerText");
-
-                    }
-                    string CurrentDay = DateTime.Now.ToString("yyyy-MM-dd");
-                    if (LastLength < newmessage.Length || LastMsgTime != TimeBak)
-                    {
-                        //skip last message if program just opened
-                        if (isSkipMsg)
-                        {
-                            isSkipMsg = false;
-                            goto skip;
-                        }
-
-                        // Handle Command here
-                        Console.WriteLine("New Message Received!!");
-                        msg.HandleMsg(LastMsg, page);
-
-                        if (LastMsg.IsNotNullOrEmpty() && LastMsgTime.IsNotNullOrEmpty())
-                        {
-                            LastMsgID = LastMsg + "-" + LastMsgTime + "-" + CurrentDay + "\n";
-                            System.IO.File.AppendAllText("chat.log", LastMsgID);
-                            //if (CheckLastThreeLinesAreSame("chat.log"))
-                            //{
-                            //    Console.WriteLine("The last 3 lines are the same.");
-                            //}
-                            //else
-                            //{
-                            //    Console.WriteLine("The last 3 lines are not the same.");
-                            //}
-                        }
-                    }
-                    skip:
-                    LastLength = newmessage.Length;
+                    await msg.GetLatestDM(page);
+                    //await msg.GetLatestGroup(page);
                 }
                 catch (Exception ex)
                 {
                     msg.HandleMsg(ex.Message, page);
                 }
-                
+
             }
+            return "";
         }
 
         //setup
