@@ -12,6 +12,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="PuppeteerSharp" Version="20.0.5" />
+    <PackageReference Include="RestSharp" Version="112.1.0" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="9.0.0" />
     <PackageReference Include="System.Management" Version="9.0.0" />
   </ItemGroup>

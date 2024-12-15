@@ -14,36 +14,37 @@ using PuppeteerSharp;
 using SystemInfo;
 using Newtonsoft.Json.Linq;
 using DotNetEnv;
+using StringExt;
 
-namespace Puppeeter_Api
+namespace WhatsApp
 {
 #pragma warning disable CS0618
-    //just helping me with string
-
-    public static partial class StringExtensions
+    
+    public partial class Program
     {
-        
-        public static bool IsNotNullOrEmpty(this string pe)
-        {
-            if(pe == null || pe == "")
-            {
-                return false;
-            }
-            return true;
-        }
-    }
-    class Program
-    {
-
+        // API
         private static readonly string CohereApiUrl = Environment.GetEnvironmentVariable("COHERE_API_URL");
         private static readonly string CohereApiKey = Environment.GetEnvironmentVariable("COHERE_API_KEY");
         private static readonly string HuggingFaceApiUrl = Environment.GetEnvironmentVariable("HUGGINGFACE_API_URL");
         private static readonly string HuggingFaceApiKey = Environment.GetEnvironmentVariable("HUGGINGFACE_API_KEY");
         private static readonly string ReplicateApiKey = Environment.GetEnvironmentVariable("REPLICATE_API_KEY");
         private static readonly string ReplicateUrl = Environment.GetEnvironmentVariable("REPLICATE_URL");
+
+        // Others
         public static SystemInf Os = new SystemInf();
-        public static bool work = false;
+        public static Messages msg = new Messages();
+        public static bool isActive = false;
+        public static bool isSkipMsg = true;
         public static string FormData = "";
+        public static string ChatLogs = "chat.log";
+
+        public static string LastMsg = String.Empty;
+        public static string LastMsgTime = String.Empty;
+        public static string LastMsgID = string.Empty;
+        public static int MaxDuplicateMsgCount = 3;
+        public static int LastLength = 100;
+
+        [STAThread] // Required for clipboard operations
         public static async Task Main(string[] args)
         {
             Env.Load();  // Load the environment variables from the .env file
@@ -82,7 +83,6 @@ namespace Puppeeter_Api
                 File.WriteAllText("cookies.json", JsonConvert.SerializeObject(cookies));
             }
 
-            await page.GoToAsync("https://putrartx.my.id");
             await page.EvaluateExpressionAsync("window.moveTo(0, 0); window.resizeTo(screen.width, screen.height);");
             // Set the viewport to emulate full screen
             await page.SetViewportAsync(new ViewPortOptions
@@ -97,15 +97,8 @@ namespace Puppeeter_Api
             Console.WriteLine("Waiting Profile");
             GoToChat(page);
             Console.WriteLine("Goto Profile Done!");
-            work = true;
-
-            //extract latest message
-            string LastMsg = String.Empty;
-            string LastMsgTime = String.Empty;
-            string LastMsgID = string.Empty;
-            int MaxDuplicateMsgCount = 3;
-            int LastLength = 0;
-            while (work)
+            isActive = true;
+            while (isActive)
             {
                 try
                 {
@@ -126,41 +119,16 @@ namespace Puppeeter_Api
                     string CurrentDay = DateTime.Now.ToString("yyyy-MM-dd");
                     if (LastLength < newmessage.Length || LastMsgTime != TimeBak)
                     {
+                        //skip last message if program just opened
+                        if (isSkipMsg)
+                        {
+                            isSkipMsg = false;
+                            goto skip;
+                        }
 
                         // Handle Command here
-                        Console.WriteLine("It should exec");
-
-                        if (LastMsg.IsNotNullOrEmpty())
-                        {
-                            if (LastMsg == "/ping")
-                            {
-                                SendMsg(page, Os.GetSystemInfo());
-                            }
-                            if(LastMsg.StartsWith("/gen"))
-                            {
-
-                                string prompt = LastMsg.Split("/gen ").Last() + ", Give me very simple Answer that is less than 100 lines please!1";
-                                var input = new
-                                {
-                                    prompt = prompt,
-                                    max_tokens = 200,  // Max tokens for the response
-                                    temperature = 0.7,  // Controls the randomness of the response
-                                    top_p = 0.9         // Controls the diversity of the response
-                                };
-
-                                var response = await SendRequestToCohere(input);
-                                Console.WriteLine(response);
-                                // Parse the JSON response
-                                JObject responseObject = JObject.Parse(response);
-
-                                // Extract the 'text' field from the 'generations' array
-                                string generatedText = responseObject["generations"][0]["text"].ToString();
-
-                                // Output the result
-                                Console.WriteLine(generatedText);
-                                SendMsg(page, generatedText);
-                            }
-                        }
+                        Console.WriteLine("New Message Received!!");
+                        msg.HandleMsg(LastMsg, page);
 
                         if (LastMsg.IsNotNullOrEmpty() && LastMsgTime.IsNotNullOrEmpty())
                         {
@@ -176,16 +144,12 @@ namespace Puppeeter_Api
                             //}
                         }
                     }
-                    else
-                    {
-                        Console.WriteLine("Nope Same msg");
-                    }
                     skip:
                     LastLength = newmessage.Length;
                 }
                 catch (Exception ex)
                 {
-                    SendMsg(page,ex.Message);
+                    msg.HandleMsg(ex.Message, page);
                 }
                 
             }
@@ -206,57 +170,7 @@ namespace Puppeeter_Api
             }
         }
 
-        public async static void SendMsg(IPage page, string msg = "Error: Unhandled Message!\n")
-        {
-            while (true)
-            {
-                var input = await page.XPathAsync("//div[@aria-placeholder='Ketik pesan']");
-                if (input.Length > 0)
-                {
-                    // Split the message by \r\n (newline with carriage return) to handle each line
-                    msg = msg.Replace("\r", "");
-                    var lines = msg.Split(new[] { "\n" }, StringSplitOptions.None);
-
-                    foreach (var line in lines)
-                    {
-                        // Type the line in the input field
-                        await input[0].TypeAsync(line);
-                        if(Environment.OSVersion.Platform == PlatformID.Win32NT)
-                        {
-                            // Simulate Shift + Enter (to create a line break without submitting)
-                            await page.Keyboard.DownAsync("Shift");
-                            await page.Keyboard.PressAsync("Enter");
-                            await page.Keyboard.UpAsync("Shift");
-                        }
-                        else
-                        {
-                            // Simulate Shift + Enter using JavaScript (for Linux compatibility)
-                            await page.EvaluateFunctionAsync(@"(element) => {
-                const shiftEnterEvent = new KeyboardEvent('keydown', {
-                    key: 'Enter',
-                    shiftKey: true
-                });
-                element.dispatchEvent(shiftEnterEvent);
-            }", input[0]);
-                        }
-                        
-                    }
-                    break;
-                }
-
-            }
-
-            await Task.Delay(1000);
-            while (true)
-            {
-                var send = await page.XPathAsync("//span[@data-icon='send']/..");
-                if (send.Length > 0)
-                {
-                    await send[0].ClickAsync();
-                    break;
-                }
-            }
-        }
+        
         public static bool CheckLastThreeLinesAreSame(string filePath)
         {
             // Read all lines from the file
@@ -274,51 +188,6 @@ namespace Puppeeter_Api
             // Check if the last three lines are the same
             return lastThreeLines[0] == lastThreeLines[1] && lastThreeLines[1] == lastThreeLines[2];
         }
-        private static async Task<string> SendRequestToReplicate(object input)
-        {
-            using (var client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {ReplicateApiKey}");
-                client.DefaultRequestHeaders.Add("Prefer", "wait");
 
-                var content = new StringContent(JsonConvert.SerializeObject(input), Encoding.UTF8, "application/json");
-
-                var response = await client.PostAsync(ReplicateUrl, content);
-                response.EnsureSuccessStatusCode();
-
-                var responseString = await response.Content.ReadAsStringAsync();
-                return responseString;
-            }
-        }
-        private static async Task<string> SendRequestToHuggingFace(object input)
-        {
-            using (var client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {HuggingFaceApiKey}");
-
-                var content = new StringContent(JsonConvert.SerializeObject(input), Encoding.UTF8, "application/json");
-
-                var response = await client.PostAsync(HuggingFaceApiUrl, content);
-                response.EnsureSuccessStatusCode();
-
-                var responseString = await response.Content.ReadAsStringAsync();
-                return responseString;
-            }
-        }
-        private static async Task<string> SendRequestToCohere(object input)
-        {
-            using (var client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {CohereApiKey}");
-
-                var content = new StringContent(JsonConvert.SerializeObject(input), Encoding.UTF8, "application/json");
-
-                var response = await client.PostAsync(CohereApiUrl, content);
-                response.EnsureSuccessStatusCode();
-
-                var responseString = await response.Content.ReadAsStringAsync();
-                return responseString;
-            }
-        }
     }
 }
