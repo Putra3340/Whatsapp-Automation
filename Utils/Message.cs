@@ -25,35 +25,12 @@ public class Messages
     {
         string TimeBak = Program.LastMsgTime;
         await Task.Delay(1000);
-        IElementHandle[] newmessage = await page.XPathAsync("/html");
-
-        var newmessage2 = await page.XPathAsync("//div[@role='row']/div[contains(@data-id,'@c.us') and not(contains(@data-id,'6281334149855'))]/div[contains(@class,'message')]/../..");
-        if (newmessage2.Length > 0)
-        {
-            string rawmsg = await newmessage2.Last().EvaluateFunctionAsync<string>("e => e.innerText");
-            string[] splitmsg = rawmsg.Split("\n");
-
-            if (splitmsg.Length > 2)
-            {
-                string USername = splitmsg[0];
-                Program.LastMsg = splitmsg[1];
-                Program.LastMsgTime = splitmsg[2];
-            }
-            else if (splitmsg.Length > 1)
-            {
-
-                Program.LastMsg = splitmsg[0];
-                Program.LastMsgTime = splitmsg[1];
-            }
-        }
-        else
-        {
-            newmessage = await page.XPathAsync("//div[@class='copyable-text' and not(contains(@data-pre-plain-text,' Rahmad Syaputra'))]//span[@dir]/span");
+        var    newmessage = await page.XPathAsync("//div[@class='copyable-text' and not(contains(@data-pre-plain-text,' Rahmad Syaputra'))]//span[@dir]/span");
             if (newmessage.Length > 0)
             {
                 Program.LastMsg = await newmessage.Last().EvaluateFunctionAsync<string>("e => e.innerText");
             }
-        }
+        
 
         
         var cek = await page.XPathAsync("//div[@class='copyable-text' and not(contains(@data-pre-plain-text,' Rahmad Syaputra'))]/following-sibling::div");
@@ -63,7 +40,7 @@ public class Messages
 
         }
         string CurrentDay = DateTime.Now.ToString("yyyy-MM-dd");
-        if (Program.LastLength < newmessage.Length || Program.LastMsgTime != TimeBak || Program.LastLength2 < newmessage2.Length)
+        if (Program.LastLength < newmessage.Length || Program.LastMsgTime != TimeBak)
         {
             //skip last message if program just opened
             if (Program.isSkipMsg)
@@ -92,44 +69,66 @@ public class Messages
         }
     skip:
         Program.LastLength = newmessage.Length;
-        Program.LastLength2 = newmessage2.Length;
         return "";
     }
     
 
-
-
-
-    public async void GetLatest()
+    public async Task<string> GetGroupMsg(IPage page)
     {
-        string url = "https://putrartx.my.id/Apps/WhatsApp.ver"; // Replace with your desired URL
-
-        using (HttpClient client = new HttpClient())
+        string TimeBak = Program.LastMsgTime;
+        await Task.Delay(1000);
+        var newmessage2 = await page.XPathAsync("//div[@role='row']/div[contains(@data-id,'@c.us') and not(contains(@data-id,'6281334149855'))]/div[contains(@class,'message')]/../..");
+        if (newmessage2.Length > 0)
         {
-            try
+            string rawmsg = await newmessage2.Last().EvaluateFunctionAsync<string>("e => e.innerText");
+            string[] splitmsg = rawmsg.Split("\n");
+
+            if (splitmsg.Length > 2)
             {
-                // Send a GET request to the URL
-                HttpResponseMessage response = await client.GetAsync(url);
-
-                // Ensure the request was successful
-                response.EnsureSuccessStatusCode();
-
-                // Read the response content as a string
-                string responseBody = await response.Content.ReadAsStringAsync();
-
-                Program.LatestVer = responseBody;
-
+                string USername = splitmsg[0];
+                Program.LastMsg = splitmsg[1];
+                Program.LastMsgTime = splitmsg[2];
             }
-            catch (Exception ex)
+            else if (splitmsg.Length > 1)
             {
-                Console.WriteLine($"An error occurred: {ex.Message}");
+
+                Program.LastMsg = splitmsg[0];
+                Program.LastMsgTime = splitmsg[1];
             }
         }
+        string CurrentDay = DateTime.Now.ToString("yyyy-MM-dd");
+        if (Program.LastLength2 < newmessage2.Length || Program.LastMsgTime != TimeBak)
+        {
+            //skip last message if program just opened
+            if (Program.isSkipMsg)
+            {
+                Program.isSkipMsg = false;
+                goto skip;
+            }
+
+            // Handle Command here
+            Console.WriteLine("New Message Received!!");
+            HandleMsg(Program.LastMsg, page);
+
+            if (Program.LastMsg.IsNotNullOrEmpty() && Program.LastMsgTime.IsNotNullOrEmpty())
+            {
+                Program.LastMsgID = Program.LastMsg + "-" + Program.LastMsgTime + "-" + CurrentDay + "\n";
+                System.IO.File.AppendAllText("chat.log", Program.LastMsgID);
+                //if (CheckLastThreeLinesAreSame("chat.log"))
+                //{
+                //    Console.WriteLine("The last 3 lines are the same.");
+                //}
+                //else
+                //{
+                //    Console.WriteLine("The last 3 lines are not the same.");
+                //}
+            }
+        }
+    skip:
+        Program.LastLength2 = newmessage2.Length;
+
+        return "";
     }
-
-
-
-
 
 
     public async void HandleMsg(string LastMsg, IPage page)
@@ -192,7 +191,7 @@ public class Messages
                 }
                 else if (Program.LastMsg.StartsWith("/help"))
                 {
-                    SendMsg(page, "" +
+                    SendMsg(page, $"{Program.Current}" +
                         "List All Available Commands\n" +
                         "/about\n" +
                         "/ask\n" +

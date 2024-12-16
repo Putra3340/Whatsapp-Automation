@@ -44,7 +44,7 @@ namespace WhatsApp
         public static int MaxDuplicateMsgCount = 3;
         public static int LastLength = 100;
         public static int LastLength2 = 100;
-        public static string LatestVer = "";
+        public static string ServerVer = "";
         public static string Current = "0.2b";
 
         [STAThread] // Required for clipboard operations
@@ -54,6 +54,12 @@ namespace WhatsApp
 
 
             Console.WriteLine("Checking Updates!");
+            await GetLatest();
+            if(Current != ServerVer)
+            {
+                Console.WriteLine("New Update Available!!");
+                Current += " => " + ServerVer;
+            }
             await new BrowserFetcher().DownloadAsync();
             var browser = await Puppeteer.LaunchAsync(new LaunchOptions
             {
@@ -117,8 +123,8 @@ namespace WhatsApp
             {
                 try
                 {
-                    await msg.GetLatestDM(page);
-                    //await msg.GetLatestGroup(page);
+                    //msg.GetLatestDM(page);
+                    await msg.GetGroupMsg(page);
                 }
                 catch (Exception ex)
                 {
@@ -162,6 +168,36 @@ namespace WhatsApp
             // Check if the last three lines are the same
             return lastThreeLines[0] == lastThreeLines[1] && lastThreeLines[1] == lastThreeLines[2];
         }
+
+        public static async Task<string> GetLatest()
+        {
+            string url = "https://putrartx.my.id/Apps/WhatsApp.ver"; // Replace with your desired URL
+
+            using (HttpClient client = new HttpClient())
+            {
+                try
+                {
+                    // Send a GET request to the URL
+                    HttpResponseMessage response = await client.GetAsync(url);
+
+                    // Ensure the request was successful
+                    response.EnsureSuccessStatusCode();
+
+                    // Read the response content as a string
+                    string responseBody = await response.Content.ReadAsStringAsync();
+
+                    Program.ServerVer = responseBody.Replace("\n","");
+                    return responseBody;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"An error occurred: {ex.Message}");
+                    ServerVer = Current;
+                }
+            }
+            return url;
+        }
+
 
     }
 }
