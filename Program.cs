@@ -35,6 +35,7 @@ namespace WhatsApp
         public static Messages msg = new Messages();
         public static bool isActive = false;
         public static bool isSkipMsg = true;
+        public static bool isBusy = false;
         public static string FormData = "";
         public static string ChatLogs = "chat.log";
 
@@ -42,6 +43,7 @@ namespace WhatsApp
         public static string LastMsgTime = String.Empty;
         public static string LastMsgID = string.Empty;
         public static int MaxDuplicateMsgCount = 3;
+        public static char State = 'I';
         public static int LastLength = 100;
         public static int LastLength2 = 100;
         public static string ServerVer = "";
@@ -123,8 +125,35 @@ namespace WhatsApp
             {
                 try
                 {
-                    //msg.GetLatestDM(page);
-                    await msg.GetGroupMsg(page);
+                    //check if in group or dms
+                    var ingroup = await page.XPathAsync("//div[@id='main']//span[contains(@title,'Anda')]");
+                    if(ingroup.Length > 0)
+                    {
+                        isBusy = true;
+                        // getgroup
+                        if(State != 'G')
+                        {
+                            Console.WriteLine("Currently on Groups");
+                            State = 'G';
+                        }
+                        await msg.GetGroupMsg(page);
+                        isBusy = false;
+                    }
+                    else
+                    {
+                        isBusy = true;
+                        if(State != 'D')
+                        {
+                            Console.WriteLine("Currently on DMs");
+                            State = 'D';
+                        }
+                        await msg.GetLatestDM(page);
+                        isBusy = false;
+                    }
+                    while(isBusy)
+                    {
+                        await Task.Delay(500);
+                    }
                 }
                 catch (Exception ex)
                 {
