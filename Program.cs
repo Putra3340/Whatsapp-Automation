@@ -38,6 +38,8 @@ namespace WhatsApp
         public static bool isBusy = false;
         public static string FormData = "";
         public static string ChatLogs = "chat.log";
+        public static string QueueLogs = "queue.log";
+
 
         public static string LastMsg = String.Empty;
         public static string LastMsgTime = String.Empty;
@@ -47,7 +49,7 @@ namespace WhatsApp
         public static int LastLength = 100;
         public static int LastLength2 = 100;
         public static string ServerVer = "";
-        public static string Current = "0.2b";
+        public static string Current = "0.8a";
 
         [STAThread] // Required for clipboard operations
         public static async Task Main(string[] args)
@@ -131,13 +133,13 @@ namespace WhatsApp
                     {
                         isBusy = true;
                         // getgroup
-                        if(State != 'G')
+                        if (State != 'G')
                         {
                             Console.WriteLine("Currently on Groups");
                             State = 'G';
                         }
                         await msg.GetGroupMsg(page);
-                        isBusy = false;
+                        isBusy = await msg.Queue(page);
                     }
                     else
                     {
@@ -147,12 +149,8 @@ namespace WhatsApp
                             Console.WriteLine("Currently on DMs");
                             State = 'D';
                         }
-                        await msg.GetLatestDM(page);
+                        //await msg.GetLatestDM(page);
                         isBusy = false;
-                    }
-                    while(isBusy)
-                    {
-                        await Task.Delay(500);
                     }
                 }
                 catch (Exception ex)
