@@ -15,6 +15,7 @@ using SystemInfo;
 using Newtonsoft.Json.Linq;
 using DotNetEnv;
 using StringExt;
+using BotPress;
 
 namespace WhatsApp
 {
@@ -36,6 +37,8 @@ namespace WhatsApp
         public static bool isActive = false;
         public static bool isSkipMsg = true;
         public static bool isBusy = false;
+        public static bool isMuted = true;
+        public static bool BotPressMode = false;
         public static string FormData = "";
         public static string ChatLogs = "chat.log";
         public static string QueueLogs = "queue.log";
@@ -49,7 +52,7 @@ namespace WhatsApp
         public static int LastLength = 100;
         public static int LastLength2 = 100;
         public static string ServerVer = "";
-        public static string Current = "0.8a";
+        public static string Current = "0.9b";
 
         [STAThread] // Required for clipboard operations
         public static async Task Main(string[] args)
@@ -81,6 +84,9 @@ namespace WhatsApp
     }
             });
             Console.WriteLine("Setup Browser..");
+            await Bot.Create(browser);
+            await Task.Delay(5000);
+            
             await CreatePage(browser);
             // CreatePage(browser); so the whatsapp cant open 2 pages
             while (true)

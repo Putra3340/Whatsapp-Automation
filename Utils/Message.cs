@@ -10,6 +10,7 @@ using SystemInfo;
 using RestSharp;
 using System.Windows; // Requires PresentationCore assembly
 using static System.Net.Mime.MediaTypeNames;
+using BotPress;
 using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -19,6 +20,7 @@ public class Messages
 {
     public static SystemInf Os = new SystemInf();
     public static string Operating = "";
+    public static string Prefix = "/";
 
     [STAThread] // Required for clipboard operations
 
@@ -157,9 +159,9 @@ public class Messages
             string Executed = System.IO.File.ReadAllText(Program.QueueLogs);
             if (!Executed.Contains(loghash.Split("ඞ").Last()))
             {
-                Console.WriteLine($"Executing..\n{loghash}");
                 // Construct the log entry
                 string logEntry = loghash.Split("ඞ").Last();
+                Console.WriteLine($"Executing..\n{logEntry} => {loghash.Split("ඞ")[1]}\n{new string('=',100)}");
 
                 // Read all lines from the file to avoid duplicates
                 if (!File.Exists(Program.QueueLogs))
@@ -177,7 +179,7 @@ public class Messages
                         await HandleMsg(loghash.Split("ඞ")[1],page);
                         // Append the log entry if MsgHash is not found
                         File.AppendAllText(Program.QueueLogs, logEntry + "\n");
-                        Console.WriteLine($"Done {logEntry}\n\n");
+                        Console.WriteLine($"{new string('=',50)}\nDone => {logEntry}\n\n");
                     }
                 }
             }
@@ -196,22 +198,39 @@ public class Messages
         {
             Operating = "Linux";
         }
-
-        if (LastMsg.IsNotNullOrEmpty())
+        if (Program.BotPressMode)
         {
-            if (LastMsg.StartsWith("/"))
+            if (LastMsg.IsNotNullOrEmpty())
             {
-                if (LastMsg == "/ping")
+                //disable botpress mode
+                if (LastMsg.StartsWith(Prefix))
                 {
-
-                    SendMsg(page, Os.GetSystemInfo() + Os.PingWithoutLib("8.8.8.8"));
-
+                    if (LastMsg.StartsWith($"{Prefix}botpress off"))
+                    {
+                        Program.BotPressMode = false;
+                    }
+                    
                 }
                 else
-                if (LastMsg.StartsWith("/ask "))
                 {
+                    //ask to bot
+                    await SendMsg(page, await Bot.AskBot(LastMsg));
 
-                    string prompt = Program.LastMsg.Split("/ask ").Last() + ", Give me very simple Answer that is less than 100 lines please!1";
+                }
+            }
+        }
+        if (LastMsg.IsNotNullOrEmpty())
+        {
+            if (LastMsg.StartsWith(Prefix))
+            {
+                if (LastMsg.StartsWith("ping".AddPrefix()))
+                {
+                    await SendMsg(page, Os.GetSystemInfo() + Os.PingWithoutLib(LastMsg.Split("/ping ").Last()));
+                }
+                else
+                if (LastMsg.StartsWith("ask ".AddPrefix()))
+                {
+                    string prompt = LastMsg.Split("ask ".AddPrefix()).Last() + ", Give me very simple Answer that is less than 100 lines please!1";
                     var input = new
                     {
                         prompt = prompt,
@@ -222,31 +241,22 @@ public class Messages
 
                     var response = await Program.SendRequestToCohere(input);
                     Console.WriteLine(response);
-                    // Parse the JSON response
                     JObject responseObject = JObject.Parse(response);
-
-                    // Extract the 'text' field from the 'generations' array
                     string generatedText = responseObject["generations"][0]["text"].ToString();
-
-                    // Output the result
                     Console.WriteLine(generatedText);
-                    SendMsg(page, generatedText);
+                    await SendMsg(page, generatedText);
                 }
-                else if (LastMsg.StartsWith("/about"))
+                else if (LastMsg.StartsWith("about".AddPrefix()))
                 {
-                    SendMsg(page, $"Hi! I’m a software designed for WhatsApp automation {Program.Current}\n" +
+                    await SendMsg(page, $"Hi! I’m a software designed for WhatsApp automation {Program.Current}\n" +
                         $"Currently Running on {Operating}\n" +
                         $"I was created using C# on December 15, 2024, by *Putra3340!!*.\n" +
                         $"https://github.com/Putra3340/Whatsapp-Automation" +
                         $"\n\nFeel free to check out /credits for more information!");
                 }
-                else if (LastMsg.StartsWith("/text2img"))
+                else if (LastMsg.StartsWith("help".AddPrefix()))
                 {
-                    SendMsg(page, "This Features is in Development!!, You can help suggest Generative API..\n Reach out /dev");
-                }
-                else if (LastMsg.StartsWith("/help"))
-                {
-                    SendMsg(page, $"{Program.Current}" +
+                    await SendMsg(page, $"{Program.Current}" +
                         "List All Available Commands\n" +
                         "/about\n" +
                         "/ask\n" +
@@ -266,21 +276,28 @@ public class Messages
                         "" +
                         "");
                 }
-                else if (LastMsg.StartsWith("/ayank"))
-                {
-                    SendImg(page);
-                }
-                else if (LastMsg.StartsWith("/whoami"))
-                {
-                    GetUserProfile(page);
-                }
-                else if (LastMsg.StartsWith("/amogus"))
+                else if (LastMsg.StartsWith("amogus".AddPrefix()))
                 {
                     await Amogus(page);
                 }
-                else
+                else if (LastMsg.StartsWith("botpress on".AddPrefix()))
                 {
-                    //SendMsg(page, "The command is not valid, Fuck YOU!");
+                    Program.BotPressMode = true;
+                }
+                else if(LastMsg.StartsWith("kill".AddPrefix()))
+                {
+                    Program.isMuted = true;
+                    await SendMsg(page, "RIP");
+                }
+                else if(LastMsg.StartsWith("start".AddPrefix()))
+                {
+                    Program.isMuted = false;
+                    await SendMsg(page, "Bot Activated!");
+                }
+                else if (LastMsg.StartsWith("setprefix".AddPrefix()))
+                {
+                    Prefix = LastMsg.Split(" ").Last();
+                    Console.WriteLine("Current Prefix is" + Prefix);
                 }
             }
 
@@ -289,6 +306,12 @@ public class Messages
     }
     public async static Task<string> SendMsg(IPage page, string msg = "Error: Unhandled Message!\n")
     {
+        if (Program.isMuted)
+        {
+            Console.WriteLine("Bot is Muted!!");
+            return "";
+        }
+        await page.BringToFrontAsync();
         while (true)
         {
             var input = await page.XPathAsync("//div[@aria-placeholder='Ketik pesan']");

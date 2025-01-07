@@ -122,7 +122,7 @@ namespace SystemInfo
             }
             return "Memory Info not available";
         }
-        public  string PingWithoutLib(string address)
+        public  string PingWithoutLib(string address = "8.8.8.8")
         {
             try
             {
