@@ -38,7 +38,8 @@ namespace WhatsApp
         public static bool isSkipMsg = true;
         public static bool isBusy = false;
         public static bool isMuted = true;
-        public static bool BotPressMode = false;
+        public static bool BotPressMode = false;   
+        public static bool BotHaluMode = false;   
         public static string FormData = "";
         public static string ChatLogs = "chat.log";
         public static string QueueLogs = "queue.log";
@@ -84,8 +85,9 @@ namespace WhatsApp
     }
             });
             Console.WriteLine("Setup Browser..");
-            await Bot.Create(browser);
-            await Task.Delay(5000);
+            //await Bot.Create(browser);
+            BotCharAi.Create(browser);
+            
             
             await CreatePage(browser);
             // CreatePage(browser); so the whatsapp cant open 2 pages
@@ -173,7 +175,7 @@ namespace WhatsApp
         {
             while (true)
             {
-                var mycontact = await page.XPathAsync("//span[@title='Aku I' and contains(text(),'Aku I')]");
+                var mycontact = await page.XPathAsync("//span[@title='Test bot']");
                 if (mycontact.Length > 0)
                 {
                     await mycontact[0].ClickAsync();

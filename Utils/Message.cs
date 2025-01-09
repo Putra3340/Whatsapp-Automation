@@ -172,11 +172,16 @@ public class Messages
                 else
                 {
                     var fileContent = File.ReadAllText(Program.QueueLogs);
-
+                    bool isadmin = false;
+                    
                     // Check if the MsgHash already exists
                     if (!fileContent.Contains(logEntry))
                     {
-                        await HandleMsg(loghash.Split("ඞ")[1],page);
+                        if(loghash.Split("ඞ").First() == "Admin")
+                        {
+                            isadmin = true;
+                        }
+                        await HandleMsg(loghash.Split("ඞ")[1],page,isadmin);
                         // Append the log entry if MsgHash is not found
                         File.AppendAllText(Program.QueueLogs, logEntry + "\n");
                         Console.WriteLine($"{new string('=',50)}\nDone => {logEntry}\n\n");
@@ -188,7 +193,7 @@ public class Messages
         return false;
     }
 
-    public async Task<string> HandleMsg(string LastMsg, IPage page)
+    public async Task<string> HandleMsg(string LastMsg, IPage page,bool isAdmin = false)
     {
         if (Environment.OSVersion.Platform == PlatformID.Win32NT)
         {
@@ -205,7 +210,7 @@ public class Messages
                 //disable botpress mode
                 if (LastMsg.StartsWith(Prefix))
                 {
-                    if (LastMsg.StartsWith($"{Prefix}botpress off"))
+                    if (LastMsg.StartsWith($"{Prefix}botpress off") && isAdmin)
                     {
                         Program.BotPressMode = false;
                     }
@@ -215,6 +220,27 @@ public class Messages
                 {
                     //ask to bot
                     await SendMsg(page, await Bot.AskBot(LastMsg));
+
+                }
+            }
+        }
+        if (Program.BotHaluMode)
+        {
+            if (LastMsg.IsNotNullOrEmpty())
+            {
+                //disable botpress mode
+                if (LastMsg.StartsWith(Prefix))
+                {
+                    if (LastMsg.StartsWith($"{Prefix}halu off") && isAdmin)
+                    {
+                        Program.BotPressMode = false;
+                    }
+
+                }
+                else
+                {
+                    //ask to bot
+                    await SendMsg(page, await BotCharAi.AskBot(LastMsg));
 
                 }
             }
@@ -280,24 +306,43 @@ public class Messages
                 {
                     await Amogus(page);
                 }
-                else if (LastMsg.StartsWith("botpress on".AddPrefix()))
+                else if (LastMsg.StartsWith("botpress on".AddPrefix()) && isAdmin)
                 {
                     Program.BotPressMode = true;
                 }
-                else if(LastMsg.StartsWith("kill".AddPrefix()))
+                else if (LastMsg.StartsWith("halu on".AddPrefix()) && isAdmin)
+                {
+                    Program.BotHaluMode = true;
+                }
+                else if(LastMsg.StartsWith("kill".AddPrefix()) && isAdmin)
                 {
                     Program.isMuted = true;
                     await SendMsg(page, "RIP");
                 }
                 else if(LastMsg.StartsWith("start".AddPrefix()))
                 {
-                    Program.isMuted = false;
-                    await SendMsg(page, "Bot Activated!");
+                    if (isAdmin)
+                    {
+                        Program.isMuted = false;
+                        await SendMsg(page, "Bot Activated!");
+                    }
+                    
                 }
-                else if (LastMsg.StartsWith("setprefix".AddPrefix()))
+                else if (LastMsg.StartsWith("setprefix".AddPrefix()) && isAdmin)
                 {
                     Prefix = LastMsg.Split(" ").Last();
                     Console.WriteLine("Current Prefix is" + Prefix);
+                }
+                else if (LastMsg.StartsWith("debug".AddPrefix()) && isAdmin)
+                {
+                    await SendMsg(page,GetAllVariablesAsString());
+                }else if (LastMsg.StartsWith("admincheck".AddPrefix()) && isAdmin)
+                {
+                    await SendMsg(page,"You are Admin yey");
+                }else if(LastMsg.StartsWith("admincheck".AddPrefix()))
+                {
+                    await SendMsg(page, "You are not Admin fuck u");
+
                 }
             }
 
@@ -306,12 +351,14 @@ public class Messages
     }
     public async static Task<string> SendMsg(IPage page, string msg = "Error: Unhandled Message!\n")
     {
+        Console.WriteLine($"Sending => {msg}");
         if (Program.isMuted)
         {
             Console.WriteLine("Bot is Muted!!");
             return "";
         }
         await page.BringToFrontAsync();
+        await Task.Delay(1000);
         while (true)
         {
             var input = await page.XPathAsync("//div[@aria-placeholder='Ketik pesan']");
@@ -446,5 +493,32 @@ public class Messages
             }
         }
         return true;
+    }
+
+    public static string GetAllVariablesAsString()
+    {
+        return $"Program.isActive: {Program.isActive}\n" +
+               $"Program.isSkipMsg: {Program.isSkipMsg}\n" +
+               $"Program.isBusy: {Program.isBusy}\n" +
+               $"Program.isMuted: {Program.isMuted}\n" +
+               $"Program.BotPressMode: {Program.BotPressMode}\n" +
+               $"Program.BotHaluMode: {Program.BotHaluMode}\n" +
+               $"Program.FormData: \"{Program.FormData}\"\n" +
+               $"Program.ChatLogs: \"{Program.ChatLogs}\"\n" +
+               $"Program.QueueLogs: \"{Program.QueueLogs}\"\n" +
+               $"Program.LastMsg: \"{Program.LastMsg}\"\n" +
+               $"Program.LastMsgTime: \"{Program.LastMsgTime}\"\n" +
+               $"Program.LastMsgID: \"{Program.LastMsgID}\"\n" +
+               $"Program.MaxDuplicateMsgCount: {Program.MaxDuplicateMsgCount}\n" +
+               $"Program.State: {Program.State}\n" +
+               $"Program.LastLength: {Program.LastLength}\n" +
+               $"Program.LastLength2: {Program.LastLength2}\n" +
+               $"Program.ServerVer: \"{Program.ServerVer}\"\n" +
+               $"Program.Current: \"{Program.Current}\"\n" +
+               $"Prefix: \"{Prefix}\"\n" +
+               $"Os: \"{Os}\"\n";
+               
+               
+               ;
     }
 }
