@@ -16,6 +16,7 @@ using Newtonsoft.Json.Linq;
 using DotNetEnv;
 using StringExt;
 using BotPress;
+using Whatsapp;
 
 namespace WhatsApp
 {
@@ -34,6 +35,7 @@ namespace WhatsApp
         // Others
         public static SystemInf Os = new SystemInf();
         public static Messages msg = new Messages();
+        public static bool ReadMode = false;
         public static bool isActive = false;
         public static bool isSkipMsg = true;
         public static bool isBusy = false;
@@ -55,6 +57,9 @@ namespace WhatsApp
         public static string ServerVer = "";
         public static string Current = "0.9b";
 
+        public static IBrowser browser = null;
+        public static IPage WhatsappPage = null;
+
         [STAThread] // Required for clipboard operations
         public static async Task Main(string[] args)
         {
@@ -69,7 +74,7 @@ namespace WhatsApp
                 Current += " => " + ServerVer;
             }
             await new BrowserFetcher().DownloadAsync();
-            var browser = await Puppeteer.LaunchAsync(new LaunchOptions
+            browser = await Puppeteer.LaunchAsync(new LaunchOptions
             {
                 Headless = false, // Change to false for visible browser
                 UserDataDir = "./Puput",
@@ -84,50 +89,62 @@ namespace WhatsApp
 
     }
             });
+
+            //Setup
             Console.WriteLine("Setup Browser..");
-            //await Bot.Create(browser);
-            BotCharAi.Create(browser);
+
+
+            //await Bot.Create(); // Setup The Botpress Page
+            //BotCharAi.Create(browser); // Setup C.ai Page
+            //await ClaudeAi.Create();
             
-            
-            await CreatePage(browser);
+            await CreatePage();
             // CreatePage(browser); so the whatsapp cant open 2 pages
+
+            Console.WriteLine("Program Ends..");
             while (true)
             {
+
                 Console.ReadLine();
             }
         }
-        public static async Task<string> CreatePage(IBrowser browser)
+
+        // Init Whatsapp page
+        public static async Task<string> CreatePage()
         {
 
             //create page instance
-            var page = await browser.NewPageAsync();
+            WhatsappPage = await browser.NewPageAsync();
 
             if (File.Exists("cookies.json"))
             {
                 Console.WriteLine("Cookie exists.");
                 var cookies = JsonConvert.DeserializeObject<CookieParam[]>(File.ReadAllText("cookies.json"));
-                await page.SetCookieAsync(cookies);
+                await WhatsappPage.SetCookieAsync(cookies);
             }
             else
             {
                 Console.WriteLine("Cookie does not exist.");
-                var cookies = await page.GetCookiesAsync();
+                var cookies = await WhatsappPage.GetCookiesAsync();
                 File.WriteAllText("cookies.json", JsonConvert.SerializeObject(cookies));
             }
 
-            await page.EvaluateExpressionAsync("window.moveTo(0, 0); window.resizeTo(screen.width, screen.height);");
+            await WhatsappPage.EvaluateExpressionAsync("window.moveTo(0, 0); window.resizeTo(screen.width, screen.height);");
 
-            await page.SetViewportAsync(new ViewPortOptions
+            await WhatsappPage.SetViewportAsync(new ViewPortOptions
             {
                 Width = 1366,
                 Height = 654
             });
 
-            await page.GoToAsync("https://web.whatsapp.com/");
+            await WhatsappPage.GoToAsync("https://web.whatsapp.com/");
             await Task.Delay(3000);
 
             Console.WriteLine("Waiting Profile");
-            GoToChat(page);
+
+            // Go to specific chat
+            GoToChat();
+
             Console.WriteLine("Goto Profile Done!");
             isActive = true;
             await Task.Delay(3000);
@@ -136,7 +153,7 @@ namespace WhatsApp
                 try
                 {
                     //check if in group or dms
-                    var ingroup = await page.XPathAsync("//div[@id='main']//span[contains(@title,'Anda')]");
+                    var ingroup = await WhatsappPage.XPathAsync("//div[@id='main']//span[contains(@title,'Anda')]");
                     if(ingroup.Length > 0)
                     {
                         isBusy = true;
@@ -146,8 +163,8 @@ namespace WhatsApp
                             Console.WriteLine("Currently on Groups");
                             State = 'G';
                         }
-                        await msg.GetGroupMsg(page);
-                        isBusy = await msg.Queue(page);
+                        await msg.GetGroupMsg(WhatsappPage);
+                        isBusy = await msg.Queue(WhatsappPage);
                     }
                     else
                     {
@@ -163,7 +180,17 @@ namespace WhatsApp
                 }
                 catch (Exception ex)
                 {
-                    msg.HandleMsg(ex.Message, page);
+                    await msg.SendMsg(WhatsappPage, "Error Occured!!\nResetting to Everything to Default Configuration.\n\n" + ex.Message);
+                    isActive = true;
+                    isSkipMsg = true;
+                    isBusy = false;
+                    isMuted = false;
+                    BotPressMode = false;
+                    BotHaluMode = false;
+                    FormData = "";
+                    ChatLogs = "chat.log";
+                    QueueLogs = "queue.log";
+                    await msg.HandleMsg("/debug", WhatsappPage, true);
                 }
 
             }
@@ -171,11 +198,11 @@ namespace WhatsApp
         }
 
         //setup
-        public async static void GoToChat(IPage page)
+        public async static void GoToChat()
         {
             while (true)
             {
-                var mycontact = await page.XPathAsync("//span[@title='Test bot']");
+                var mycontact = await WhatsappPage.XPathAsync("//span[@title='Test bot']");
                 if (mycontact.Length > 0)
                 {
                     await mycontact[0].ClickAsync();
@@ -185,42 +212,16 @@ namespace WhatsApp
             }
         }
 
-        
-        public static bool CheckLastThreeLinesAreSame(string filePath)
-        {
-            // Read all lines from the file
-            var lines = File.ReadLines(filePath).ToList();
-
-            // Ensure the file has at least 3 lines
-            if (lines.Count < 3)
-            {
-                return false;
-            }
-
-            // Get the last 3 lines
-            var lastThreeLines = lines.Skip(Math.Max(0, lines.Count - 3)).ToList();
-
-            // Check if the last three lines are the same
-            return lastThreeLines[0] == lastThreeLines[1] && lastThreeLines[1] == lastThreeLines[2];
-        }
-
         public static async Task<string> GetLatest()
         {
-            string url = "https://putrartx.my.id/Apps/WhatsApp.ver"; // Replace with your desired URL
-
+            string url = "https://putrartx.my.id/Apps/WhatsApp.ver";
             using (HttpClient client = new HttpClient())
             {
                 try
                 {
-                    // Send a GET request to the URL
                     HttpResponseMessage response = await client.GetAsync(url);
-
-                    // Ensure the request was successful
                     response.EnsureSuccessStatusCode();
-
-                    // Read the response content as a string
                     string responseBody = await response.Content.ReadAsStringAsync();
-
                     Program.ServerVer = responseBody.Replace("\n","");
                     return responseBody;
                 }

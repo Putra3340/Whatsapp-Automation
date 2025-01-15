@@ -21,6 +21,7 @@ public class Messages
     public static SystemInf Os = new SystemInf();
     public static string Operating = "";
     public static string Prefix = "/";
+#pragma warning disable CS0618 // Type or member is obsolete
 
     [STAThread] // Required for clipboard operations
 
@@ -161,7 +162,7 @@ public class Messages
             {
                 // Construct the log entry
                 string logEntry = loghash.Split("ඞ").Last();
-                Console.WriteLine($"Executing..\n{logEntry} => {loghash.Split("ඞ")[1]}\n{new string('=',100)}");
+                Console.WriteLine($"{new string('=', 100)}\nProcessing..\n{logEntry} => {loghash.Split("ඞ")[1]}");
 
                 // Read all lines from the file to avoid duplicates
                 if (!File.Exists(Program.QueueLogs))
@@ -184,7 +185,7 @@ public class Messages
                         await HandleMsg(loghash.Split("ඞ")[1],page,isadmin);
                         // Append the log entry if MsgHash is not found
                         File.AppendAllText(Program.QueueLogs, logEntry + "\n");
-                        Console.WriteLine($"{new string('=',50)}\nDone => {logEntry}\n\n");
+                        Console.WriteLine($"Done => {logEntry}\n{new string('=', 100)}\n\n");
                     }
                 }
             }
@@ -203,8 +204,13 @@ public class Messages
         {
             Operating = "Linux";
         }
+        if (Program.ReadMode)
+        {
+            return "";
+        }
         if (Program.BotPressMode)
         {
+
             if (LastMsg.IsNotNullOrEmpty())
             {
                 //disable botpress mode
@@ -226,6 +232,7 @@ public class Messages
         }
         if (Program.BotHaluMode)
         {
+            
             if (LastMsg.IsNotNullOrEmpty())
             {
                 //disable botpress mode
@@ -233,7 +240,7 @@ public class Messages
                 {
                     if (LastMsg.StartsWith($"{Prefix}halu off") && isAdmin)
                     {
-                        Program.BotPressMode = false;
+                        Program.BotHaluMode = false;
                     }
 
                 }
@@ -308,11 +315,31 @@ public class Messages
                 }
                 else if (LastMsg.StartsWith("botpress on".AddPrefix()) && isAdmin)
                 {
-                    Program.BotPressMode = true;
+                    if (!Bot.Ready)
+                    {
+                        await SendMsg(page, "Plugins is not enabled!\nContact @085710786509");
+                        Program.BotPressMode = false;
+                        return "";
+                    }
+                    else
+                    {
+                        await SendMsg(page, "Botpress Mode Started!");
+                        Program.BotPressMode = true;
+                    }
                 }
                 else if (LastMsg.StartsWith("halu on".AddPrefix()) && isAdmin)
                 {
-                    Program.BotHaluMode = true;
+                    if (!BotCharAi.Ready)
+                    {
+                        await SendMsg(page, "Plugins is not enabled!\nContact @085710786509");
+                        Program.BotHaluMode = false;
+                        return "";
+                    }
+                    else
+                    {
+                        Program.BotHaluMode = true;
+                        await SendMsg(page, "Halu Mode Started!");
+                    }
                 }
                 else if(LastMsg.StartsWith("kill".AddPrefix()) && isAdmin)
                 {
@@ -342,14 +369,53 @@ public class Messages
                 }else if(LastMsg.StartsWith("admincheck".AddPrefix()))
                 {
                     await SendMsg(page, "You are not Admin fuck u");
+                }else if(LastMsg.StartsWith("reset".AddPrefix()) && isAdmin)
+                {
+                    await SendMsg(page, "Resetting all configuration");
+                    Program.isActive = true;
+                    Program.isSkipMsg = true;
+                    Program.isBusy = false;
+                    Program.isMuted = false;
+                    Program.BotPressMode = false;
+                    Program.BotHaluMode = false;
+                    Program.FormData = "";
+                    Program.ChatLogs = "chat.log";
+                    Program.QueueLogs = "queue.log";
+                    Prefix = "/";
+                    await HandleMsg("/debug", page, isAdmin);
+                }
+                else if (LastMsg.StartsWith("test".AddPrefix()))
+                {
+                    //await SendImg(page, "");
+                    await SendImg(page, LastMsg.GetArgs());
+                }
+                else if (LastMsg.StartsWith("gaycheck".AddPrefix()))
+                {
+                    // Create a Random instance
+                    Random random = new Random();
 
+                    // Generate a random true/false value
+                    bool result = random.Next(2) == 0;
+
+                    // Output the result
+                    Console.WriteLine($"Random result: {result}");
+
+                    if (result)
+                    {
+                        await SendMsg(page, "You are Gay, why are you ge?");
+                    }
+                    else
+                    {
+                        await SendMsg(page, "You are normal sir");
+
+                    }
                 }
             }
 
         }
         return "";
     }
-    public async static Task<string> SendMsg(IPage page, string msg = "Error: Unhandled Message!\n")
+    public async Task<string> SendMsg(IPage page, string msg = "Error: Unhandled Message!\n")
     {
         Console.WriteLine($"Sending => {msg}");
         if (Program.isMuted)
@@ -411,11 +477,91 @@ public class Messages
     }
 
 
-    private async void SendImg(IPage page)
+    private async Task<string> SendImg(IPage page, string path)
     {
-        string imageUrl = "https://i.pinimg.com/736x/e9/61/ca/e961ca42412a80ccef492d9b4f09bbb4.jpg"; // Replace with your image URL
+        string UploadPath = path;
 
+        // Check Path is it from url?
+        if (path.IsNotNullOrEmpty())
+        {
+            if (path.StartsWith("http"))
+            {
+                UploadPath = await DownloadImg(path);
+            }
+        }
+        else
+        {
+            return "";
+        }
+        Console.WriteLine($"Sending => {UploadPath}");
+        if (Program.isMuted)
+        {
+            Console.WriteLine("Bot is Muted!!");
+            return "";
+        }
+        await page.BringToFrontAsync();
+        await Task.Delay(1000);
+
+
+        while (true)
+        {
+            var plus = await page.XPathAsync("//span[@data-icon='plus']");
+            if(plus.Length > 0)
+            {
+                await plus[0].ClickAsync();
+                await Task.Delay(500);
+                break;
+            }
+        }
+        while (true)
+        {
+            var inputimg = await page.XPathAsync("//input[contains(@accept,'video') and @type='file']");
+            if(inputimg.Length > 0)
+            {
+                await inputimg[0].UploadFileAsync(@$"{UploadPath}");
+            }
+            break;
+        }
+        await Task.Delay(1000);
+        while (true)
+        {
+            var send = await page.XPathAsync("//span[@data-icon='send']/..");
+            if (send.Length > 0)
+            {
+                await send[0].ClickAsync();
+                break;
+            }
+        }
+        return "";
     }
+
+    private async Task<string> DownloadImg(string url)
+    {
+        string localFilePath = "";
+        if (url.IsNotNullOrEmpty())
+        {
+            var currentDir = Directory.GetCurrentDirectory();
+            var imagesDir = Path.Combine(currentDir, "Images");
+            if (!Directory.Exists(imagesDir))
+            {
+                Directory.CreateDirectory(imagesDir);
+                Console.WriteLine($"Created directory: {imagesDir}");
+            }
+
+            // Path to save the downloaded image
+            localFilePath = Path.Combine(imagesDir, $"image-{EpochUtils.GetCurrentEpoch()}.png");
+            Console.WriteLine("Downloading...  " + url);
+            // Download the image
+            using (var httpClient = new HttpClient())
+            {
+                var imageBytes = await httpClient.GetByteArrayAsync(url);
+                await File.WriteAllBytesAsync(localFilePath, imageBytes);
+                Console.WriteLine($"Image downloaded and saved to {localFilePath}");
+            }
+        }
+        return localFilePath;
+    }
+
     private async void GetUserProfile(IPage page)
     {
         string Profil = "";
@@ -521,4 +667,7 @@ public class Messages
                
                ;
     }
+
+
+
 }

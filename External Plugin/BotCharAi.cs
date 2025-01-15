@@ -4,23 +4,27 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using WhatsApp;
 
 namespace BotPress
 {
     public static class BotCharAi
     {
-        public static bool Good = false;
+#pragma warning disable CS0618 // Type or member is obsolete
+
+        public static bool Ready = false;
+
         public static IPage chat;
 
-        public static async Task<bool> Create(IBrowser browser)
+        public static async Task<bool> Create()
         {
-            if(browser == null)
+            if(Program.browser == null)
             {
                 return false;
             }
 
             //create a page
-            chat = await browser.NewPageAsync();
+            chat = await Program.browser.NewPageAsync();
             //await chat.GoToAsync("https://cdn.botpress.cloud/webchat/v2.2/shareable.html?configUrl=https://files.bpcontent.cloud/2025/01/07/04/20250107040936-52K8CXJ4.json");
             await chat.GoToAsync("https://character.ai/chat/kfo-xqFBH6feYwWo9ar8q3grQKqGXzC-83a7ySyHpec");
             while (true)
@@ -31,6 +35,7 @@ namespace BotPress
                     break;
                 }
             }
+            Ready = true;
             return true;
         }
         public static async Task<string> AskBot(string askmsg)
