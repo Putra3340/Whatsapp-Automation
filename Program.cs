@@ -97,7 +97,8 @@ namespace WhatsApp
             //await Bot.Create(); // Setup The Botpress Page
             //BotCharAi.Create(browser); // Setup C.ai Page
             //await ClaudeAi.Create();
-            
+            await Brat.Create();
+
             await CreatePage();
             // CreatePage(browser); so the whatsapp cant open 2 pages
 

@@ -13,6 +13,7 @@ using static System.Net.Mime.MediaTypeNames;
 using BotPress;
 using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
+using Whatsapp;
 
 namespace WhatsApp;
 
@@ -387,7 +388,7 @@ public class Messages
                 else if (LastMsg.StartsWith("test".AddPrefix()))
                 {
                     //await SendImg(page, "");
-                    await SendImg(page, LastMsg.GetArgs());
+                    await CreateSticker(page, LastMsg.GetArgs());
                 }
                 else if (LastMsg.StartsWith("gaycheck".AddPrefix()))
                 {
@@ -409,6 +410,10 @@ public class Messages
                         await SendMsg(page, "You are normal sir");
 
                     }
+                }
+                else if (LastMsg.StartsWith("brat".AddPrefix()))
+                {
+                    await CreateSticker(page,await Brat.AskBot(LastMsg.GetArgs()));
                 }
             }
 
@@ -560,6 +565,64 @@ public class Messages
             }
         }
         return localFilePath;
+    }
+
+    private async Task<string> CreateSticker(IPage page, string path)
+    {
+        string UploadPath = path;
+
+        // Check Path is it from url?
+        if (path.IsNotNullOrEmpty())
+        {
+            if (path.StartsWith("http"))
+            {
+                UploadPath = await DownloadImg(path);
+            }
+        }
+        else
+        {
+            return "";
+        }
+        Console.WriteLine($"Sending => {UploadPath}");
+        if (Program.isMuted)
+        {
+            Console.WriteLine("Bot is Muted!!");
+            return "";
+        }
+        await page.BringToFrontAsync();
+        await Task.Delay(1000);
+
+
+        while (true)
+        {
+            var plus = await page.XPathAsync("//span[@data-icon='plus']");
+            if (plus.Length > 0)
+            {
+                await plus[0].ClickAsync();
+                await Task.Delay(500);
+                break;
+            }
+        }
+        while (true)
+        {
+            var inputimg = await page.XPathAsync("//span[text()='Stiker baru']/following-sibling::input");
+            if (inputimg.Length > 0)
+            {
+                await inputimg[0].UploadFileAsync(@$"{UploadPath}");
+            }
+            break;
+        }
+        await Task.Delay(1000);
+        while (true)
+        {
+            var send = await page.XPathAsync("//span[@data-icon='send']/..");
+            if (send.Length > 0)
+            {
+                await send[0].ClickAsync();
+                break;
+            }
+        }
+        return "";
     }
 
     private async void GetUserProfile(IPage page)
