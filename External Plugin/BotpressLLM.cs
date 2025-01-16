@@ -37,6 +37,8 @@ namespace BotPress
         }
         public static async Task<string> AskBot(string askmsg)
         {
+            Program.LastMethod = "BotpressLLM.cs AskBot()";
+
             await chat.BringToFrontAsync();
             await Task.Delay(2000);
             var cekinput = await chat.XPathAsync("//textarea[@placeholder='Type your message...']");

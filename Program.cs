@@ -42,9 +42,11 @@ namespace WhatsApp
         public static bool isMuted = true;
         public static bool BotPressMode = false;   
         public static bool BotHaluMode = false;   
-        public static string FormData = "";
+        public static bool isProcesingQueue = true;
+        public static string LastMethod = "";
         public static string ChatLogs = "chat.log";
         public static string QueueLogs = "queue.log";
+        public static string DefaultImagePath = $"{Path.Combine(Directory.GetCurrentDirectory(), "Images")}";
 
 
         public static string LastMsg = String.Empty;
@@ -54,8 +56,7 @@ namespace WhatsApp
         public static char State = 'I';
         public static int LastLength = 100;
         public static int LastLength2 = 100;
-        public static string ServerVer = "";
-        public static string Current = "0.9b";
+        public static string CurrentVersion = "1.0";
 
         public static IBrowser browser = null;
         public static IPage WhatsappPage = null;
@@ -63,16 +64,34 @@ namespace WhatsApp
         [STAThread] // Required for clipboard operations
         public static async Task Main(string[] args)
         {
+            Program.LastMethod = "Main";
+
             Env.Load();  // Load the environment variables from the .env file
-
-
             Console.WriteLine("Checking Updates!");
-            await GetLatest();
-            if(Current != ServerVer)
+            await GetLatest(); //Check updates
+
+            // Init Client
+            // Image Dir
+            if (!Directory.Exists(DefaultImagePath))
             {
-                Console.WriteLine("New Update Available!!");
-                Current += " => " + ServerVer;
+                Directory.CreateDirectory(DefaultImagePath);
+                Console.WriteLine($"Created directory: {DefaultImagePath}");
             }
+            if(!File.Exists(ChatLogs))
+            {
+                File.Create(ChatLogs);
+                Console.WriteLine($"Created file: {ChatLogs}");
+
+            }
+
+            if(!File.Exists(QueueLogs))
+            {
+                File.Create (QueueLogs);
+                Console.WriteLine($"Created file: {QueueLogs}");
+            }
+            // Setup Browser
+            Console.WriteLine("Init Browser");
+
             await new BrowserFetcher().DownloadAsync();
             browser = await Puppeteer.LaunchAsync(new LaunchOptions
             {
@@ -91,30 +110,26 @@ namespace WhatsApp
             });
 
             //Setup
-            Console.WriteLine("Setup Browser..");
+            Console.WriteLine("Setup Plugins..");
 
 
-            //await Bot.Create(); // Setup The Botpress Page
-            //BotCharAi.Create(browser); // Setup C.ai Page
-            //await ClaudeAi.Create();
-            await Brat.Create();
+            Bot.Create(); // Setup The Botpress Page
+            BotCharAi.Create(); // Setup C.ai Page
+            Brat.Create();
 
             await CreatePage();
             // CreatePage(browser); so the whatsapp cant open 2 pages
 
             Console.WriteLine("Program Ends..");
-            while (true)
-            {
-
-                Console.ReadLine();
-            }
+            Console.ReadLine();
         }
 
         // Init Whatsapp page
         public static async Task<string> CreatePage()
         {
+            Program.LastMethod = "CreatePage";
+            // Create Whatsapp Page
 
-            //create page instance
             WhatsappPage = await browser.NewPageAsync();
 
             if (File.Exists("cookies.json"))
@@ -132,13 +147,15 @@ namespace WhatsApp
 
             await WhatsappPage.EvaluateExpressionAsync("window.moveTo(0, 0); window.resizeTo(screen.width, screen.height);");
 
+            
+
             await WhatsappPage.SetViewportAsync(new ViewPortOptions
             {
                 Width = 1366,
                 Height = 654
             });
 
-            await WhatsappPage.GoToAsync("https://web.whatsapp.com/");
+            await WhatsappPage.GoToAsync("https://web.whatsapp.com/",6969696);
             await Task.Delay(3000);
 
             Console.WriteLine("Waiting Profile");
@@ -157,41 +174,30 @@ namespace WhatsApp
                     var ingroup = await WhatsappPage.XPathAsync("//div[@id='main']//span[contains(@title,'Anda')]");
                     if(ingroup.Length > 0)
                     {
-                        isBusy = true;
                         // getgroup
                         if (State != 'G')
                         {
                             Console.WriteLine("Currently on Groups");
                             State = 'G';
                         }
-                        await msg.GetGroupMsg(WhatsappPage);
-                        isBusy = await msg.Queue(WhatsappPage);
+                        await msg.GetGroupMsg();
+                        await msg.Queue();
                     }
                     else
                     {
-                        isBusy = true;
                         if(State != 'D')
                         {
                             Console.WriteLine("Currently on DMs");
                             State = 'D';
                         }
                         //await msg.GetLatestDM(page);
-                        isBusy = false;
                     }
                 }
                 catch (Exception ex)
                 {
-                    await msg.SendMsg(WhatsappPage, "Error Occured!!\nResetting to Everything to Default Configuration.\n\n" + ex.Message);
-                    isActive = true;
-                    isSkipMsg = true;
-                    isBusy = false;
-                    isMuted = false;
-                    BotPressMode = false;
-                    BotHaluMode = false;
-                    FormData = "";
-                    ChatLogs = "chat.log";
-                    QueueLogs = "queue.log";
-                    await msg.HandleMsg("/debug", WhatsappPage, true);
+                    await msg.SendMsg("Error Occured!!" + ex.Message);
+                    await msg.HandleMsg("/debug", true);
+                    break;
                 }
 
             }
@@ -201,6 +207,7 @@ namespace WhatsApp
         //setup
         public async static void GoToChat()
         {
+            Program.LastMethod = "GoToChat";
             while (true)
             {
                 var mycontact = await WhatsappPage.XPathAsync("//span[@title='Test bot']");
@@ -213,26 +220,27 @@ namespace WhatsApp
             }
         }
 
-        public static async Task<string> GetLatest()
+        public static async Task GetLatest()
         {
-            string url = "https://putrartx.my.id/Apps/WhatsApp.ver";
-            using (HttpClient client = new HttpClient())
+            Program.LastMethod = "GetLatest";
+            var client = new HttpClient();
+            var request = new HttpRequestMessage(HttpMethod.Post, "https://putrartx.my.id/Api/Versions.php");
+            var content = new MultipartFormDataContent();
+            content.Add(new StringContent("7FpYX9LrkTNm4qV8CJ3ZD6sKh1tRXvBWAgMP52QLowUdyEzHpGiOkjf0aubnce7VY"), "key_id");
+            request.Content = content;
+            var response = await client.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            string temp = await response.Content.ReadAsStringAsync();
+            temp = temp.Split("value\":\"").Last().Split("\"").First().ExtractNumbers();
+            int version = int.Parse(temp);
+            int clientversion = int.Parse(CurrentVersion.ExtractNumbers());
+            
+            if(version > clientversion) {
+                Console.WriteLine($"Currenly on {CurrentVersion}. There is an update to {temp}");
+            }else if(version < clientversion)
             {
-                try
-                {
-                    HttpResponseMessage response = await client.GetAsync(url);
-                    response.EnsureSuccessStatusCode();
-                    string responseBody = await response.Content.ReadAsStringAsync();
-                    Program.ServerVer = responseBody.Replace("\n","");
-                    return responseBody;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"An error occurred: {ex.Message}");
-                    ServerVer = Current;
-                }
-            }
-            return url;
+                Console.WriteLine($"This version is ahead of the server, Assuming you are the dev");
+            }else { Console.WriteLine("Currently on Latest Version"); }
         }
 
 

@@ -40,7 +40,7 @@ namespace BotPress
         }
         public static async Task<string> AskBot(string askmsg)
         {
-            
+            Program.LastMethod = "BotCharAi.cs AskBot()";
             await chat.BringToFrontAsync();
             await Task.Delay(2000);
             var cekinput = await chat.XPathAsync("//textarea[contains(@placeholder,'Elysia Wife...')]");
@@ -56,16 +56,6 @@ namespace BotPress
             }
             Console.WriteLine("wait");
             await Task.Delay(3000);
-            while (true)
-            {
-                var loading = await chat.XPathAsync("//div[@data-testid='streaming-message']");
-                if(loading.Length == 0)
-                {
-                    break;
-                    
-                }
-            }
-                await Task.Delay(500);
 
             while (true)
             {

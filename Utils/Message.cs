@@ -30,7 +30,7 @@ public class Messages
     {
         string TimeBak = Program.LastMsgTime;
         await Task.Delay(1000);
-        var    newmessage = await page.XPathAsync("//div[@class='copyable-text' and not(contains(@data-pre-plain-text,' Rahmad Syaputra'))]//span[@dir]/span");
+        var    newmessage = await Program.WhatsappPage.XPathAsync("//div[@class='copyable-text' and not(contains(@data-pre-plain-text,' Rahmad Syaputra'))]//span[@dir]/span");
             if (newmessage.Length > 0)
             {
                 Program.LastMsg = await newmessage.Last().EvaluateFunctionAsync<string>("e => e.innerText");
@@ -38,7 +38,7 @@ public class Messages
         
 
         
-        var cek = await page.XPathAsync("//div[@class='copyable-text' and not(contains(@data-pre-plain-text,' Rahmad Syaputra'))]/following-sibling::div");
+        var cek = await Program.WhatsappPage.XPathAsync("//div[@class='copyable-text' and not(contains(@data-pre-plain-text,' Rahmad Syaputra'))]/following-sibling::div");
         if (cek.Length > 0)
         {
             Program.LastMsgTime = await cek.Last().EvaluateFunctionAsync<string>("e => e.innerText");
@@ -56,7 +56,7 @@ public class Messages
 
             // Handle Command here
             Console.WriteLine("New Message Received!!");
-            HandleMsg(Program.LastMsg, page);
+            await HandleMsg(Program.LastMsg);
 
             if (Program.LastMsg.IsNotNullOrEmpty() && Program.LastMsgTime.IsNotNullOrEmpty())
             {
@@ -78,11 +78,12 @@ public class Messages
     }
 
 
-    public async Task<string> GetGroupMsg(IPage page)
+    public async Task<string> GetGroupMsg()
     {
+        Program.LastMethod = "GetGroupMsg";
         string Username = String.Empty;
         string LastUsername = String.Empty;
-        var GroupMsg = await page.XPathAsync("//div[contains(@data-id,'@c.us') and not(contains(@data-id,'6281334149855')) and not(.//img[@alt='Stiker tanpa label'])]");
+        var GroupMsg = await Program.WhatsappPage.XPathAsync("//div[contains(@data-id,'@c.us') and not(contains(@data-id,'6281334149855')) and not(.//img[@alt='Stiker tanpa label'])]");
         if (GroupMsg.Length > 0)
         {
             // make foreach loop to get msg id and save to queue
@@ -153,8 +154,13 @@ public class Messages
 
         return "";
     }
-    public async Task<bool> Queue(IPage page)
+    public async Task<bool> Queue()
     {
+        Program.LastMethod = "Queue";
+        if(!Program.isProcesingQueue)
+        {
+            return false;
+        }
         await Task.Delay(1000);
         foreach (string loghash in File.ReadLines(Program.ChatLogs))
         {
@@ -184,7 +190,7 @@ public class Messages
                             isadmin = true;
                         }
                         Program.LastMsgID = logEntry;
-                        await HandleMsg(loghash.Split("ඞ")[1],page,isadmin);
+                        await HandleMsg(loghash.Split("ඞ")[1],isadmin);
                         // Append the log entry if MsgHash is not found
                         File.AppendAllText(Program.QueueLogs, logEntry + "\n");
                         Console.WriteLine($"Done => {logEntry}\n{new string('=', 100)}\n\n");
@@ -196,8 +202,9 @@ public class Messages
         return false;
     }
 
-    public async Task<string> HandleMsg(string LastMsg, IPage page,bool isAdmin = false)
+    public async Task<string> HandleMsg(string LastMsg,bool isAdmin = false)
     {
+        
         if (Environment.OSVersion.Platform == PlatformID.Win32NT)
         {
             Operating = "Windows";
@@ -227,7 +234,7 @@ public class Messages
                 else
                 {
                     //ask to bot
-                    await SendMsg(page, await Bot.AskBot(LastMsg));
+                    await SendMsg(await Bot.AskBot(LastMsg));
 
                 }
             }
@@ -249,7 +256,7 @@ public class Messages
                 else
                 {
                     //ask to bot
-                    await SendMsg(page, await BotCharAi.AskBot(LastMsg));
+                    await SendMsg(await BotCharAi.AskBot(LastMsg));
 
                 }
             }
@@ -260,7 +267,7 @@ public class Messages
             {
                 if (LastMsg.StartsWith("ping".AddPrefix()))
                 {
-                    await SendMsg(page, Os.GetSystemInfo() + Os.PingWithoutLib(LastMsg.Split("/ping ").Last()));
+                    await SendMsg(Os.GetSystemInfo() + Os.PingWithoutLib(LastMsg.Split("/ping ").Last()));
                 }
                 else
                 if (LastMsg.StartsWith("ask ".AddPrefix()))
@@ -279,11 +286,11 @@ public class Messages
                     JObject responseObject = JObject.Parse(response);
                     string generatedText = responseObject["generations"][0]["text"].ToString();
                     Console.WriteLine(generatedText);
-                    await SendMsg(page, generatedText);
+                    await SendMsg(generatedText);
                 }
                 else if (LastMsg.StartsWith("about".AddPrefix()))
                 {
-                    await SendMsg(page, $"Hi! I’m a software designed for WhatsApp automation {Program.Current}\n" +
+                    await SendMsg($"Hi! I’m a software designed for WhatsApp automation {Program.CurrentVersion}\n" +
                         $"Currently Running on {Operating}\n" +
                         $"I was created using C# on December 15, 2024, by *Putra3340!!*.\n" +
                         $"https://github.com/Putra3340/Whatsapp-Automation" +
@@ -291,7 +298,7 @@ public class Messages
                 }
                 else if (LastMsg.StartsWith("help".AddPrefix()))
                 {
-                    await SendMsg(page, $"{Program.Current}" +
+                    await SendMsg($"{Program.CurrentVersion}" +
                         "List All Available Commands\n" +
                         "/about\n" +
                         "/ask\n" +
@@ -313,19 +320,19 @@ public class Messages
                 }
                 else if (LastMsg.StartsWith("amogus".AddPrefix()))
                 {
-                    await Amogus(page);
+                    await Amogus(Program.WhatsappPage);
                 }
                 else if (LastMsg.StartsWith("botpress on".AddPrefix()) && isAdmin)
                 {
                     if (!Bot.Ready)
                     {
-                        await SendMsg(page, "Plugins is not enabled!\nContact @085710786509");
+                        await SendMsg("Plugins is not enabled!\nContact @085710786509");
                         Program.BotPressMode = false;
                         return "";
                     }
                     else
                     {
-                        await SendMsg(page, "Botpress Mode Started!");
+                        await SendMsg("Botpress Mode Started!");
                         Program.BotPressMode = true;
                     }
                 }
@@ -333,27 +340,27 @@ public class Messages
                 {
                     if (!BotCharAi.Ready)
                     {
-                        await SendMsg(page, "Plugins is not enabled!\nContact @085710786509");
+                        await SendMsg("Plugins is not enabled!\nContact @085710786509");
                         Program.BotHaluMode = false;
                         return "";
                     }
                     else
                     {
                         Program.BotHaluMode = true;
-                        await SendMsg(page, "Halu Mode Started!");
+                        await SendMsg("Halu Mode Started!");
                     }
                 }
                 else if(LastMsg.StartsWith("kill".AddPrefix()) && isAdmin)
                 {
                     Program.isMuted = true;
-                    await SendMsg(page, "RIP");
+                    await SendMsg("RIP");
                 }
                 else if(LastMsg.StartsWith("start".AddPrefix()))
                 {
                     if (isAdmin)
                     {
                         Program.isMuted = false;
-                        await SendMsg(page, "Bot Activated!");
+                        await SendMsg("Bot Activated!");
                     }
                     
                 }
@@ -364,32 +371,31 @@ public class Messages
                 }
                 else if (LastMsg.StartsWith("debug".AddPrefix()) && isAdmin)
                 {
-                    await SendMsg(page,GetAllVariablesAsString());
+                    await SendMsg(GetAllVariablesAsString());
                 }else if (LastMsg.StartsWith("admincheck".AddPrefix()) && isAdmin)
                 {
-                    await SendMsg(page,"You are Admin yey");
+                    await SendMsg("You are Admin yey");
                 }else if(LastMsg.StartsWith("admincheck".AddPrefix()))
                 {
-                    await SendMsg(page, "You are not Admin fuck u");
+                    await SendMsg("You are not Admin fuck u");
                 }else if(LastMsg.StartsWith("reset".AddPrefix()) && isAdmin)
                 {
-                    await SendMsg(page, "Resetting all configuration");
+                    await SendMsg("Resetting all configuration");
                     Program.isActive = true;
                     Program.isSkipMsg = true;
                     Program.isBusy = false;
                     Program.isMuted = false;
                     Program.BotPressMode = false;
                     Program.BotHaluMode = false;
-                    Program.FormData = "";
                     Program.ChatLogs = "chat.log";
                     Program.QueueLogs = "queue.log";
                     Prefix = "/";
-                    await HandleMsg("/debug", page, isAdmin);
+                    await HandleMsg("/debug", isAdmin);
                 }
                 else if (LastMsg.StartsWith("test".AddPrefix()))
                 {
                     //await SendImg(page, "");
-                    await CreateSticker(page, LastMsg.GetArgs());
+                    await CreateSticker(LastMsg.GetArgs());
                 }
                 else if (LastMsg.StartsWith("gaycheck".AddPrefix()))
                 {
@@ -404,40 +410,41 @@ public class Messages
 
                     if (result)
                     {
-                        await SendMsg(page, "You are Gay, why are you ge?");
+                        await SendMsg("You are Gay, why are you ge?");
                     }
                     else
                     {
-                        await SendMsg(page, "You are normal sir");
+                        await SendMsg("You are normal sir");
 
                     }
                 }
                 else if (LastMsg.StartsWith("brat".AddPrefix()))
                 {
-                    await CreateSticker(page,await Brat.AskBot(LastMsg.GetArgs()));
+                    await CreateSticker(await Brat.AskBot(LastMsg.GetArgs()));
                 }
                 else if (LastMsg.StartsWith("sticker".AddPrefix()))
                 {
-                    await CreateSticker(page, await GetImageAttachmentLink(page));
+                    await CreateSticker(await GetImageAttachmentLink(Program.WhatsappPage));
                 }
             }
 
         }
         return "";
     }
-    public async Task<string> SendMsg(IPage page, string msg = "Error: Unhandled Message!\n")
+    public async Task<string> SendMsg(string msg = "Error: Unhandled Message!\n")
     {
+        
         Console.WriteLine($"Sending => {msg}");
         if (Program.isMuted)
         {
             Console.WriteLine("Bot is Muted!!");
             return "";
         }
-        await page.BringToFrontAsync();
+        await Program.WhatsappPage.BringToFrontAsync();
         await Task.Delay(1000);
         while (true)
         {
-            var input = await page.XPathAsync("//div[@aria-placeholder='Ketik pesan']");
+            var input = await Program.WhatsappPage.XPathAsync("//div[@aria-placeholder='Ketik pesan']");
             if (input.Length > 0)
             {
                 // Split the message by \r\n (newline with carriage return) to handle each line
@@ -451,14 +458,14 @@ public class Messages
                     if (Environment.OSVersion.Platform == PlatformID.Win32NT)
                     {
                         // Simulate Shift + Enter (to create a line break without submitting)
-                        await page.Keyboard.DownAsync("Shift");
-                        await page.Keyboard.PressAsync("Enter");
-                        await page.Keyboard.UpAsync("Shift");
+                        await Program.WhatsappPage.Keyboard.DownAsync("Shift");
+                        await Program.WhatsappPage.Keyboard.PressAsync("Enter");
+                        await Program.WhatsappPage.Keyboard.UpAsync("Shift");
                     }
                     else
                     {
                         // Simulate Shift + Enter using JavaScript (for Linux compatibility)
-                        await page.EvaluateFunctionAsync(@"(element) => {
+                        await Program.WhatsappPage.EvaluateFunctionAsync(@"(element) => {
                 const shiftEnterEvent = new KeyboardEvent('keydown', {
                     key: 'Enter',
                     shiftKey: true
@@ -476,7 +483,7 @@ public class Messages
         await Task.Delay(1000);
         while (true)
         {
-            var send = await page.XPathAsync("//span[@data-icon='send']/..");
+            var send = await Program.WhatsappPage.XPathAsync("//span[@data-icon='send']/..");
             if (send.Length > 0)
             {
                 await send[0].ClickAsync();
@@ -487,8 +494,9 @@ public class Messages
     }
 
 
-    private async Task<string> SendImg(IPage page, string path)
+    private async Task<string> SendImg(string path)
     {
+        Program.LastMethod = "SendImg";
         string UploadPath = path;
 
         // Check Path is it from url?
@@ -496,7 +504,7 @@ public class Messages
         {
             if (path.StartsWith("http"))
             {
-                UploadPath = await DownloadImg(page,path);
+                UploadPath = await DownloadImg(Program.WhatsappPage,path);
             }
         }
         else
@@ -509,13 +517,13 @@ public class Messages
             Console.WriteLine("Bot is Muted!!");
             return "";
         }
-        await page.BringToFrontAsync();
+        await Program.WhatsappPage.BringToFrontAsync();
         await Task.Delay(1000);
 
 
         while (true)
         {
-            var plus = await page.XPathAsync("//span[@data-icon='plus']");
+            var plus = await Program.WhatsappPage.XPathAsync("//span[@data-icon='plus']");
             if(plus.Length > 0)
             {
                 await plus[0].ClickAsync();
@@ -525,7 +533,7 @@ public class Messages
         }
         while (true)
         {
-            var inputimg = await page.XPathAsync("//input[contains(@accept,'video') and @type='file']");
+            var inputimg = await Program.WhatsappPage.XPathAsync("//input[contains(@accept,'video') and @type='file']");
             if(inputimg.Length > 0)
             {
                 await inputimg[0].UploadFileAsync(@$"{UploadPath}");
@@ -535,7 +543,7 @@ public class Messages
         await Task.Delay(1000);
         while (true)
         {
-            var send = await page.XPathAsync("//span[@data-icon='send']/..");
+            var send = await Program.WhatsappPage.XPathAsync("//span[@data-icon='send']/..");
             if (send.Length > 0)
             {
                 await send[0].ClickAsync();
@@ -546,19 +554,12 @@ public class Messages
     }
     private async Task<string> DownloadImg(IPage page, string url)
     {
+        Program.LastMethod = "DownloadImg";
         string localFilePath = "";
 
         if (!string.IsNullOrEmpty(url))
         {
-            var currentDir = Directory.GetCurrentDirectory();
-            var imagesDir = Path.Combine(currentDir, "Images");
-            if (!Directory.Exists(imagesDir))
-            {
-                Directory.CreateDirectory(imagesDir);
-                Console.WriteLine($"Created directory: {imagesDir}");
-            }
-
-            // Path to save the downloaded image
+            string imagesDir = Program.DefaultImagePath;
             localFilePath = Path.Combine(imagesDir, $"image-{EpochUtils.GetCurrentEpoch()}.png");
 
             if (url.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
@@ -615,10 +616,11 @@ public class Messages
 
 
 
-    private async Task<string> CreateSticker(IPage page, string path)
+    private async Task<string> CreateSticker(string path)
     {
+        Program.LastMethod = "CreateSticker";
         string UploadPath = path;
-        UploadPath = await DownloadImg(page,path);
+        UploadPath = await DownloadImg(Program.WhatsappPage, path);
 
         Console.WriteLine($"Sending => {UploadPath}");
         if (Program.isMuted)
@@ -626,13 +628,13 @@ public class Messages
             Console.WriteLine("Bot is Muted!!");
             return "";
         }
-        await page.BringToFrontAsync();
+        await Program.WhatsappPage.BringToFrontAsync();
         await Task.Delay(1000);
 
 
         while (true)
         {
-            var plus = await page.XPathAsync("//span[@data-icon='plus']");
+            var plus = await Program.WhatsappPage.XPathAsync("//span[@data-icon='plus']");
             if (plus.Length > 0)
             {
                 await plus[0].ClickAsync();
@@ -642,7 +644,7 @@ public class Messages
         }
         while (true)
         {
-            var inputimg = await page.XPathAsync("//span[text()='Stiker baru']/following-sibling::input");
+            var inputimg = await Program.WhatsappPage.XPathAsync("//span[text()='Stiker baru']/following-sibling::input");
             if (inputimg.Length > 0)
             {
                 await inputimg[0].UploadFileAsync(@$"{UploadPath}");
@@ -652,7 +654,7 @@ public class Messages
         await Task.Delay(1000);
         while (true)
         {
-            var send = await page.XPathAsync("//span[@data-icon='send']/..");
+            var send = await Program.WhatsappPage.XPathAsync("//span[@data-icon='send']/..");
             if (send.Length > 0)
             {
                 await send[0].ClickAsync();
@@ -662,58 +664,11 @@ public class Messages
         return "";
     }
 
-    private async void GetUserProfile(IPage page)
-    {
-        string Profil = "";
-        await Task.Delay(2000);
-        while (true)
-        {
-            var perofil = await page.XPathAsync("//header/div[@title='Detail Profil']");
-            if (perofil.Length > 0)
-            {
-                await perofil[0].ClickAsync();
-                break;
-            }
-
-        }
-        await Task.Delay(2000);
-        while (true)
-        {
-            var namakontak = await page.XPathAsync("//h2");
-            if (namakontak.Length > 0)
-            {
-                Profil = "Name : " + await namakontak[0].EvaluateFunctionAsync<string>("e => e.innerText");
-                break;
-            }
-
-        }
-        while (true)
-        {
-            var nomer = await page.XPathAsync("//h2/following-sibling::div/span");
-            if (nomer.Length > 0)
-            {
-                Profil += "\nPhone Number : " + await nomer[0].EvaluateFunctionAsync<string>("e => e.innerText");
-                break;
-            }
-        }
-
-        while (true)
-        {
-            var inpo = await page.XPathAsync("//span[contains(text(),'Info')]/../../../following-sibling::span");
-            if (inpo.Length > 0)
-            {
-                Profil += "\n Bio : " + await inpo[0].EvaluateFunctionAsync<string>("e => e.innerText");
-                break;
-            }
-        }
-        SendMsg(page, Profil);
-    }
-
     public async static Task<bool> Amogus(IPage page)
     {
         while (true)
         {
-            var stikbutton = await page.XPathAsync("//span[@data-icon='expressions']/..");
+            var stikbutton = await Program.WhatsappPage.XPathAsync("//span[@data-icon='expressions']/..");
             if (stikbutton.Length > 0)
             {
                 await stikbutton[0].ClickAsync();
@@ -722,7 +677,7 @@ public class Messages
         }
         while (true)
         {
-            var klikamogus = await page.XPathAsync("//span[contains(text(),'Buat')]/../../../..//../following-sibling::div//img/../..");
+            var klikamogus = await Program.WhatsappPage.XPathAsync("//span[contains(text(),'Buat')]/../../../..//../following-sibling::div//img/../..");
             if (klikamogus.Length > 0)
             {
                 await klikamogus[0].ClickAsync();
@@ -731,7 +686,7 @@ public class Messages
         }
         while (true)
         {
-            var stikbutton = await page.XPathAsync("//span[@data-icon='expressions']/..");
+            var stikbutton = await Program.WhatsappPage.XPathAsync("//span[@data-icon='expressions']/..");
             if (stikbutton.Length > 0)
             {
                 await stikbutton[0].ClickAsync();
@@ -743,13 +698,8 @@ public class Messages
 
     public static async Task<string> GetImageAttachmentLink(IPage page)
     {
-        var currentDir = Directory.GetCurrentDirectory();
-
-        var imagesDir = Path.Combine(currentDir, "Images\\Sticker");
-
-        while (true)
-        {
-            var imagelink = await page.XPathAsync($"//div[contains(@data-id,'{Program.LastMsgID}')]//div[not(@aria-label)]/img");
+        Program.LastMethod = "GetImageAttachmentLink";
+            var imagelink = await Program.WhatsappPage.XPathAsync($"//div[contains(@data-id,'{Program.LastMsgID}')]//div[not(@aria-label)]/img");
             if (imagelink.Length > 0)
             {
                 //var localFilePath = Path.Combine(imagesDir, $"image-{EpochUtils.GetCurrentEpoch()}.png");
@@ -757,7 +707,8 @@ public class Messages
                 //return localFilePath;
                 return await imagelink.Last().EvaluateFunctionAsync<string>("e => e.src");
             }
-        }
+
+            return "https://media.tenor.com/x8v1oNUOmg4AAAAM/rickroll-roll.gif";
     }
 
     public static string GetAllVariablesAsString()
@@ -768,7 +719,7 @@ public class Messages
                $"Program.isMuted: {Program.isMuted}\n" +
                $"Program.BotPressMode: {Program.BotPressMode}\n" +
                $"Program.BotHaluMode: {Program.BotHaluMode}\n" +
-               $"Program.FormData: \"{Program.FormData}\"\n" +
+               $"Program.FormData: \"{Program.LastMethod}\"\n" +
                $"Program.ChatLogs: \"{Program.ChatLogs}\"\n" +
                $"Program.QueueLogs: \"{Program.QueueLogs}\"\n" +
                $"Program.LastMsg: \"{Program.LastMsg}\"\n" +
@@ -778,8 +729,7 @@ public class Messages
                $"Program.State: {Program.State}\n" +
                $"Program.LastLength: {Program.LastLength}\n" +
                $"Program.LastLength2: {Program.LastLength2}\n" +
-               $"Program.ServerVer: \"{Program.ServerVer}\"\n" +
-               $"Program.Current: \"{Program.Current}\"\n" +
+               $"Program.Current: \"{Program.CurrentVersion}\"\n" +
                $"Prefix: \"{Prefix}\"\n" +
                $"Os: \"{Os}\"\n";
                

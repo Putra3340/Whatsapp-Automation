@@ -39,6 +39,8 @@ namespace Whatsapp
         }
         public static async Task<string> AskBot(string askmsg)
         {
+            Program.LastMethod = "Brat.cs AskBot()";
+
             var clearinput = await chat.XPathAsync("//input[@id='textInput']");
             if (clearinput.Length > 0)
             {
