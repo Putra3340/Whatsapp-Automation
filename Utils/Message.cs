@@ -183,6 +183,7 @@ public class Messages
                         {
                             isadmin = true;
                         }
+                        Program.LastMsgID = logEntry;
                         await HandleMsg(loghash.Split("ඞ")[1],page,isadmin);
                         // Append the log entry if MsgHash is not found
                         File.AppendAllText(Program.QueueLogs, logEntry + "\n");
@@ -415,6 +416,10 @@ public class Messages
                 {
                     await CreateSticker(page,await Brat.AskBot(LastMsg.GetArgs()));
                 }
+                else if (LastMsg.StartsWith("sticker".AddPrefix()))
+                {
+                    await CreateSticker(page, await GetImageAttachmentLink(page));
+                }
             }
 
         }
@@ -491,7 +496,7 @@ public class Messages
         {
             if (path.StartsWith("http"))
             {
-                UploadPath = await DownloadImg(path);
+                UploadPath = await DownloadImg(page,path);
             }
         }
         else
@@ -539,11 +544,11 @@ public class Messages
         }
         return "";
     }
-
-    private async Task<string> DownloadImg(string url)
+    private async Task<string> DownloadImg(IPage page, string url)
     {
         string localFilePath = "";
-        if (url.IsNotNullOrEmpty())
+
+        if (!string.IsNullOrEmpty(url))
         {
             var currentDir = Directory.GetCurrentDirectory();
             var imagesDir = Path.Combine(currentDir, "Images");
@@ -555,34 +560,66 @@ public class Messages
 
             // Path to save the downloaded image
             localFilePath = Path.Combine(imagesDir, $"image-{EpochUtils.GetCurrentEpoch()}.png");
-            Console.WriteLine("Downloading...  " + url);
-            // Download the image
-            using (var httpClient = new HttpClient())
+
+            if (url.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
             {
-                var imageBytes = await httpClient.GetByteArrayAsync(url);
+                Console.WriteLine("Processing data URL...");
+                // Extract base64 data
+                var base64Data = url.Substring(url.IndexOf(",") + 1);
+                var imageBytes = Convert.FromBase64String(base64Data);
                 await File.WriteAllBytesAsync(localFilePath, imageBytes);
-                Console.WriteLine($"Image downloaded and saved to {localFilePath}");
+                Console.WriteLine($"Image processed and saved to {localFilePath}");
+            }
+            else if (url.StartsWith("D:"))
+            {
+                return url; // Local path provided directly
+            }
+            else if (url.StartsWith("blob:", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("Processing blob URL...");
+                // JavaScript to fetch and convert Blob data to a base64 string
+                var jsCode = $@"
+                (async () => {{
+                    const response = await fetch('{url}');
+                    const buffer = await response.arrayBuffer();
+                    const base64String = btoa(
+                        String.fromCharCode(...new Uint8Array(buffer))
+                    );
+                    return base64String;
+                }})()";
+
+                // Evaluate JavaScript to get the base64 string
+                var base64Data = await page.EvaluateExpressionAsync<string>(jsCode);
+
+                // Decode the base64 string into a byte array
+                var imageBytes = Convert.FromBase64String(base64Data);
+                await File.WriteAllBytesAsync(localFilePath, imageBytes);
+                Console.WriteLine($"Blob data processed and saved to {localFilePath}");
+            }
+            else
+            {
+                Console.WriteLine("Downloading... " + url);
+                // Download the image from a URL
+                using (var httpClient = new HttpClient())
+                {
+                    var imageBytes = await httpClient.GetByteArrayAsync(url);
+                    await File.WriteAllBytesAsync(localFilePath, imageBytes);
+                    Console.WriteLine($"Image downloaded and saved to {localFilePath}");
+                }
             }
         }
+
         return localFilePath;
     }
+
+
+
 
     private async Task<string> CreateSticker(IPage page, string path)
     {
         string UploadPath = path;
+        UploadPath = await DownloadImg(page,path);
 
-        // Check Path is it from url?
-        if (path.IsNotNullOrEmpty())
-        {
-            if (path.StartsWith("http"))
-            {
-                UploadPath = await DownloadImg(path);
-            }
-        }
-        else
-        {
-            return "";
-        }
         Console.WriteLine($"Sending => {UploadPath}");
         if (Program.isMuted)
         {
@@ -702,6 +739,25 @@ public class Messages
             }
         }
         return true;
+    }
+
+    public static async Task<string> GetImageAttachmentLink(IPage page)
+    {
+        var currentDir = Directory.GetCurrentDirectory();
+
+        var imagesDir = Path.Combine(currentDir, "Images\\Sticker");
+
+        while (true)
+        {
+            var imagelink = await page.XPathAsync($"//div[contains(@data-id,'{Program.LastMsgID}')]//div[not(@aria-label)]/img");
+            if (imagelink.Length > 0)
+            {
+                //var localFilePath = Path.Combine(imagesDir, $"image-{EpochUtils.GetCurrentEpoch()}.png");
+                //await imagelink.Last().ScreenshotAsync(localFilePath);
+                //return localFilePath;
+                return await imagelink.Last().EvaluateFunctionAsync<string>("e => e.src");
+            }
+        }
     }
 
     public static string GetAllVariablesAsString()
