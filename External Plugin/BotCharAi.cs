@@ -1,4 +1,5 @@
-﻿using PuppeteerSharp;
+﻿using PuppeteerExt;
+using PuppeteerSharp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,13 +44,13 @@ namespace BotPress
             Program.LastMethod = "BotCharAi.cs AskBot()";
             await chat.BringToFrontAsync();
             await Task.Delay(2000);
-            var cekinput = await chat.XPathAsync("//textarea[contains(@placeholder,'Elysia Wife...')]");
+            var cekinput = await chat.WaitElementsSafeAsync("//textarea[contains(@placeholder,'Elysia Wife...')]");
             if (cekinput.Length > 0)
             {
                 await cekinput[0].TypeAsync(askmsg);
             }
 
-            var send = await chat.XPathAsync("//button[contains(@aria-label,'Send a message')]");
+            var send = await chat.FindElementsSafeAsync("//button[contains(@aria-label,'Send a message')]");
             if (send.Length > 0)
             {
                 await send[0].ClickAsync();
@@ -59,7 +60,7 @@ namespace BotPress
 
             while (true)
             {
-                var newmsg = await chat.XPathAsync("//div[@data-testid='completed-message']");
+                var newmsg = await chat.WaitElementsSafeAsync("//div[@data-testid='completed-message']");
                 if (newmsg.Length > 0)
                 {
                     //return await newmsg.First().EvaluateFunctionAsync<string>("e => e.innerText");

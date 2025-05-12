@@ -14,6 +14,7 @@ using BotPress;
 using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
 using Whatsapp;
+using PuppeteerExt;
 
 namespace WhatsApp;
 
@@ -161,7 +162,7 @@ public class Messages
         {
             return false;
         }
-        await Task.Delay(1000);
+        await Task.Delay(500);
         foreach (string loghash in File.ReadLines(Program.ChatLogs))
         {
             string Executed = System.IO.File.ReadAllText(Program.QueueLogs);
@@ -190,7 +191,7 @@ public class Messages
                             isadmin = true;
                         }
                         Program.LastMsgID = logEntry;
-                        await HandleMsg(loghash.Split("ඞ")[1],isadmin);
+                        await HandleMsg(loghash.Split("ඞ")[1],isadmin,logEntry);
                         // Append the log entry if MsgHash is not found
                         File.AppendAllText(Program.QueueLogs, logEntry + "\n");
                         Console.WriteLine($"Done => {logEntry}\n{new string('=', 100)}\n\n");
@@ -202,7 +203,7 @@ public class Messages
         return false;
     }
 
-    public async Task<string> HandleMsg(string LastMsg,bool isAdmin = false)
+    public async Task<string> HandleMsg(string LastMsg,bool isAdmin = false, string msghash = "")
     {
         
         if (Environment.OSVersion.Platform == PlatformID.Win32NT)
@@ -263,7 +264,7 @@ public class Messages
         }
         if (LastMsg.IsNotNullOrEmpty())
         {
-            if (LastMsg.StartsWith(Prefix))
+            if (true)
             {
                 if (LastMsg.StartsWith("ping".AddPrefix()))
                 {
@@ -395,7 +396,7 @@ public class Messages
                 else if (LastMsg.StartsWith("test".AddPrefix()))
                 {
                     //await SendImg(page, "");
-                    await CreateSticker(LastMsg.GetArgs());
+                    await SendMsg("test",msghash);
                 }
                 else if (LastMsg.StartsWith("gaycheck".AddPrefix()))
                 {
@@ -418,20 +419,24 @@ public class Messages
 
                     }
                 }
+                else if (LastMsg.Contains("niga"))
+                {
+                    await SendMsg("Rasis dontol",msghash);
+                }
                 else if (LastMsg.StartsWith("brat".AddPrefix()))
                 {
-                    await CreateSticker(await Brat.AskBot(LastMsg.GetArgs()));
+                    await CreateSticker(await Brat.AskBot(LastMsg.GetArgs()),msghash);
                 }
                 else if (LastMsg.StartsWith("sticker".AddPrefix()))
                 {
-                    await CreateSticker(await GetImageAttachmentLink(Program.WhatsappPage));
+                    await CreateSticker(await GetImageAttachmentLink(Program.WhatsappPage), msghash);
                 }
             }
 
         }
         return "";
     }
-    public async Task<string> SendMsg(string msg = "Error: Unhandled Message!\n")
+    public async Task<string> SendMsg(string msg = "Error: Unhandled Message!\n",string msghash = "")
     {
         
         Console.WriteLine($"Sending => {msg}");
@@ -442,39 +447,16 @@ public class Messages
         }
         await Program.WhatsappPage.BringToFrontAsync();
         await Task.Delay(1000);
+        if (msghash.IsNotNullOrEmpty())
+        {
+            await ReplyMessage(msghash);
+        }
         while (true)
         {
             var input = await Program.WhatsappPage.XPathAsync("//div[@aria-placeholder='Ketik pesan']");
             if (input.Length > 0)
             {
-                // Split the message by \r\n (newline with carriage return) to handle each line
-                msg = msg.Replace("\r", "");
-                var lines = msg.Split(new[] { "\n" }, StringSplitOptions.None);
-
-                foreach (var line in lines)
-                {
-                    // Type the line in the input field
-                    await input[0].TypeAsync(line);
-                    if (Environment.OSVersion.Platform == PlatformID.Win32NT)
-                    {
-                        // Simulate Shift + Enter (to create a line break without submitting)
-                        await Program.WhatsappPage.Keyboard.DownAsync("Shift");
-                        await Program.WhatsappPage.Keyboard.PressAsync("Enter");
-                        await Program.WhatsappPage.Keyboard.UpAsync("Shift");
-                    }
-                    else
-                    {
-                        // Simulate Shift + Enter using JavaScript (for Linux compatibility)
-                        await Program.WhatsappPage.EvaluateFunctionAsync(@"(element) => {
-                const shiftEnterEvent = new KeyboardEvent('keydown', {
-                    key: 'Enter',
-                    shiftKey: true
-                });
-                element.dispatchEvent(shiftEnterEvent);
-            }", input[0]);
-                    }
-
-                }
+                await PuppeteerExtensions.FastInput(Program.WhatsappPage,input, msg);
                 break;
             }
 
@@ -616,7 +598,7 @@ public class Messages
 
 
 
-    private async Task<string> CreateSticker(string path)
+    private async Task<string> CreateSticker(string path,string msghash)
     {
         Program.LastMethod = "CreateSticker";
         string UploadPath = path;
@@ -630,7 +612,10 @@ public class Messages
         }
         await Program.WhatsappPage.BringToFrontAsync();
         await Task.Delay(1000);
-
+        if (msghash.IsNotNullOrEmpty())
+        {
+            await ReplyMessage(msghash);
+        }
 
         while (true)
         {
@@ -662,6 +647,28 @@ public class Messages
             }
         }
         return "";
+    }
+    private async static Task ReplyMessage(string msghash)
+    {
+        var msgbubble = await Program.WhatsappPage.FindElementSafeAsync($"//div[contains(@data-id,'{msghash}') and not(contains(@data-id,'6281334149855')) and not(.//img[@alt='Stiker tanpa label'])]//div[@data-pre-plain-text]");
+        if(msgbubble != null)
+        {
+            msgbubble.HoldHoverFor(1000);
+            await Task.Delay(100);
+            var dropdown = await msgbubble.XPathAsync(".//span[@data-icon='down-context']");
+            if(dropdown.Length > 0)
+            {
+                await dropdown[0].ClickAsync();
+            }
+            await Task.Delay(100);
+            var reply = await Program.WhatsappPage.FindElementsSafeAsync("//div[@aria-label='Balas']");
+            if (reply.Length > 0)
+            {
+                await reply[0].ClickAsync();
+            }
+        }
+
+    
     }
 
     public async static Task<bool> Amogus(IPage page)

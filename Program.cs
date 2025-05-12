@@ -68,7 +68,7 @@ namespace WhatsApp
 
             Env.Load();  // Load the environment variables from the .env file
             Console.WriteLine("Checking Updates!");
-            await GetLatest(); //Check updates
+            //await GetLatest(); //Check updates
 
             // Init Client
             // Image Dir
@@ -96,7 +96,7 @@ namespace WhatsApp
             browser = await Puppeteer.LaunchAsync(new LaunchOptions
             {
                 Headless = false, // Change to false for visible browser
-                UserDataDir = "./Puput",
+                UserDataDir = "./StarLyy",
                 Args = new[]
     {
         "--no-sandbox",

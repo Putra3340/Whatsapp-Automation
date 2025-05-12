@@ -40,6 +40,9 @@ namespace StringExt
             // Join the remaining parts for demonstration (optional)
             string joinedResult = string.Join(" ", result);
             return joinedResult;
+        }public static string[] GetArrayArgs(this string msg)
+        {
+            return msg.Split(" ");
         }
         public static string ExtractNumbers(this string input)
         {

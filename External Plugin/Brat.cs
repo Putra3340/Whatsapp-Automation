@@ -55,13 +55,13 @@ namespace Whatsapp
             var currentDir = Directory.GetCurrentDirectory();
             var imagesDir = Path.Combine(currentDir, "Images/Brat/temp.png");
             await chat.BringToFrontAsync();
-            await Task.Delay(2000);
+            await Task.Delay(500);
             var cekinput = await chat.XPathAsync("//input[@id='textInput']");
             if (cekinput.Length > 0)
             {
                 await cekinput[0].TypeAsync(askmsg);
             }
-            await Task.Delay(2000);
+            await Task.Delay(500);
 
             var result = await chat.XPathAsync("//div[@id='textOverlay']");
             if (result.Length > 0)
